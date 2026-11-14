@@ -23,6 +23,7 @@ class App:
         self.doc, self.preview, self.photo = None, None, None
         self.boxes, self.history, self.future = [], [], []
         self.approved = {}
+        self.choices = {}
         self.report, self.review, self.preview_finding = None, None, None
         self.assurance_window = None
         self.analysis_revision = 0
@@ -189,7 +190,11 @@ class App:
         return self.mask_state() != self.exported
 
     def mask_state(self):
-        return tuple(self.boxes), tuple(self.approved.items())
+        return tuple(self.boxes), tuple(self.approved.items()), tuple(self.choices.items())
+
+    def redaction_plan(self):
+        from .methods import redaction_plan
+        return redaction_plan(self.boxes, self.approved, self.choices)
 
     def all_boxes(self):
         return [*self.boxes, *(b for finding in self.approved.values() for b in finding.zones)]
@@ -217,11 +222,20 @@ class App:
             else:
                 self.draw()
 
-    def approve_finding(self, finding):
-        if self.busy or finding.id in self.approved:
+    def approve_finding(self, finding, choice=None):
+        if self.busy or (finding.id in self.approved and self.choices.get(finding.id) == choice):
             return
+        from .methods import redaction_plan
+        registry, choices = dict(self.approved), dict(self.choices)
+        registry[finding.id] = finding
+        if choice:
+            choices[finding.id] = choice
+        else:
+            choices.pop(finding.id, None)
+        redaction_plan(self.boxes, registry, choices)  # Validate before changing review state.
         self.remember()
         self.approved[finding.id] = finding
+        self.choices = choices
         self.selected = None
         self.draw()
         self.refresh_status()
@@ -233,6 +247,7 @@ class App:
             return
         self.remember()
         self.approved.pop(key)
+        self.choices.pop(key, None)
         self.selected = None
         self.draw()
         self.refresh_status()
@@ -270,7 +285,7 @@ class App:
         key = signature, criteria, copy, audit, self.report
         if self.score_cache is None or self.score_cache[0] != key:
             self.score_cache = key, preparation_score(self.report, self.all_boxes(),
-                criteria_reviewed=criteria, copy_reviewed=copy, audit=audit)
+                criteria_reviewed=criteria, copy_reviewed=copy, audit=audit, labels=self.redaction_plan()[1])
         return self.score_cache[1]
 
     def refresh_score(self):
@@ -333,7 +348,8 @@ class App:
                 if status == 'progress':
                     done, total = payload
                     self.progress.configure(maximum=total, value=done)
-                    prefix = 'Analyse locale' if operation == 'scan' else 'Export'
+                    prefix = ('Analyse locale' if operation == 'scan' else
+                              'Contrôle de la copie' if operation == 'audit_export' else 'Export')
                     self.status.set(f'{prefix} : page {done} / {total}' if done < total
                                     else ('Recherche des informations à vérifier…' if operation == 'scan'
                                           else 'Vérification et finalisation de la copie…'))
@@ -353,6 +369,7 @@ class App:
                         self.doc, self.preview = payload
                         self.boxes, self.history, self.future = [], [], []
                         self.approved = {}
+                        self.choices = {}
                         self.exported = self.mask_state()
                         if self.review:
                             self.review.window.destroy()
@@ -457,6 +474,21 @@ class App:
                     x + box.x1 * w, y + box.y1 * h, fill='black',
                     outline='#d96b2b' if index == self.selected else 'black',
                     width=2 if index == self.selected else 1)
+        from .core import DocumentError, label_bounds, label_patch
+        self.label_photos = []
+        for label in self.redaction_plan()[1]:
+            if label.box.page == self.page + 1:
+                left, top, right, bottom = label_bounds(label.box, (w, h))
+                try:
+                    patch = label_patch((right - left, bottom - top), label.text)
+                except DocumentError:
+                    continue  # Zoom in to read a label too small at the fit-page scale.
+                try:
+                    photo = ImageTk.PhotoImage(patch)
+                finally:
+                    patch.close()
+                self.label_photos.append(photo)
+                self.canvas.create_image(x + left, y + top, image=photo, anchor='nw')
         if self.preview_finding and self.preview_finding.id not in self.approved:
             for box in self.preview_finding.zones:
                 if box.page == self.page + 1:
@@ -534,8 +566,8 @@ class App:
 
     def restore_masks(self, state):
         self.invalidate_assurance()
-        boxes, groups = state
-        self.boxes, self.approved = list(boxes), dict(groups)
+        boxes, groups, choices = state
+        self.boxes, self.approved, self.choices = list(boxes), dict(groups), dict(choices)
         if self.review:
             self.review.refresh()
 
@@ -602,9 +634,11 @@ class App:
             return
         unvisited = self.doc.pages - len(self.visited)
         warning = f'{unvisited} page(s) non consultée(s).\n\n' if unvisited else ''
+        retained = ('Des valeurs généralisées ou pseudonymes seront conservés dans la copie.\n\n'
+                    if self.choices else '')
         if not messagebox.askokcancel('Vérifier avant de partager', warning +
                 f'{len(self.all_boxes())} masque(s), {len(self.approved)} groupe(s) validé(s) partout.\n\n'
-                'Seules les suggestions validées et les masques manuels seront appliqués. '
+                + retained + 'Seules les suggestions validées et les masques manuels seront appliqués. '
                 'La détection peut manquer des informations. Vérifiez aussi les photos, QR et codes-barres.'):
             return
         ext = '.pdf' if self.doc.kind == 'pdf' else '.png'
@@ -616,7 +650,7 @@ class App:
             self.progress.configure(value=0)
             self.status.set('Export local en cours…')
             self.begin('export', target=Path(target), boxes=list(self.boxes),
-                       groups=list(self.approved), dpi=int(self.dpi.get()))
+                       groups=list(self.approved), choices=dict(self.choices), dpi=int(self.dpi.get()))
 
     def cancel_export(self):
         if self.busy in ('export', 'scan', 'audit_export'):

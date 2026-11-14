@@ -1,4 +1,4 @@
-PARTAGE CLAIR 0.4 — WINDOWS 64 BITS
+PARTAGE CLAIR 0.5 — WINDOWS 64 BITS
 
 1. Extrayez le ZIP dans un dossier de votre choix.
 2. Lancez PartageClair.exe. Python n'est pas nécessaire.
@@ -13,6 +13,13 @@ PARTAGE CLAIR 0.4 — WINDOWS 64 BITS
 5. Exportez vers un nouveau fichier puis ouvrez et vérifiez la copie.
 
 SCORE ET REVUE DES RISQUES
+Dans les suggestions, vous pouvez choisir : masquer entièrement, réduire la précision
+(date -> année, âge -> tranche de 10 ans, montant -> tranche de 1 000), ou inscrire un
+pseudonyme. Choisir une méthode ne l'applique pas : validez explicitement le groupe.
+Les pixels d'origine sont retirés avant le remplacement. Les informations conservées
+et les pseudonymes restent recoupables : leur score reste plafonné à 69/100.
+Si des zones se chevauchent, un masquage complet prime. Des remplacements contradictoires
+seront masqués entièrement. Relisez la copie exportée pour contrôler le résultat.
 La détection propose aussi des dates, lieux, âges, professions, références et contextes.
 Tout reste local et nécessite votre validation avant masquage. La recherche de texte
 exact permet d'ajouter un détail contextuel oublié sans propager ses mots séparément.

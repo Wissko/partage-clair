@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 — 2026-11-15
+
+- Choix de méthode avant validation : occultation, généralisation déterministe, pseudonyme.
+- Remplacements inscrits dans les pixels après suppression de la zone originale ; contrôle des pixels attendus.
+- Conservation d'indices généralisés/pseudonymisés dans le score, plafonné à 69 ; priorité aux masques complets.
+- Corrections de détection sur un document annoté de trois pages : organismes et références structurées.
+- Réduction de confusions entre noms de personnes, adresses et références ; variantes OCR avec chiffres conservées entières.
+- Script reproductible hors ligne, PDF natif + page scannée, sorties comparatives et scores par étape.
+
 ## 0.4.0 — 2026-11-14
 
 - Suggestions locales d'indices indirects, références et passages contextuels ; recherche exacte globale.

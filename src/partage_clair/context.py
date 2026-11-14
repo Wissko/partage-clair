@@ -23,7 +23,7 @@ PATTERNS = (
      r'Clermont-Ferrand|Aix-en-Provence|Brest|Tours|Limoges|Amiens|Annecy|Perpignan|Besançon|'
      r'Metz|Orl[ée]ans|Rouen|Mulhouse|Caen|Nancy|Argenteuil|Montreuil|Saint-Denis|Avignon|Poitiers)\b'),
     ('Coordonnées GPS', r'(?<!\d)[+-]?\d{1,2}[.,]\d{4,}\s*[,;]\s*[+-]?\d{1,3}[.,]\d{4,}(?!\d)'),
-    ('Profession / organisme', r'\b(?:profession|m[ée]tier|poste|employeur|entreprise|[ée]tablissement|'
+    ('Profession / organisme', r'\b(?:profession|m[ée]tier|poste|employeur|entreprise|organisme|[ée]tablissement|'
      r'[ée]cole|universit[ée]|association|service)\s*[:=]\s*[^\n\r;|]{2,100}'),
     ('Profession / organisme', r'\b(?:chirurgien(?:ne)?|neurochirurgien(?:ne)?|maire|notaire|avocat(?:e)?|'
      r'enseignant(?:e)?|infirmi(?:er|ère)|ing[ée]nieur(?:e)?|direct(?:eur|rice)|pr[ée]sident(?:e)?|'
@@ -36,6 +36,7 @@ PATTERNS = (
     ('Adresse IP', r'(?<![\w:])(?:[A-F0-9]{0,4}:){2,7}[A-F0-9]{0,4}(?![\w:])'),
     ('Téléphone', r'(?<!\w)\+\d{1,3}[ .-]?(?:\d[ .-]?){6,13}\d(?!\d)'),
     ('Identifiant', r'(?<!\d)[12](?: ?\d){14}(?!\d)'),
+    ('Identifiant', r'(?<![\w-])(?-i:[A-Z]{2,12})-\d{3,12}(?![\w-])'),
     # Entire lines are proposed so the identity-bearing relationship is not ignored.
     ('Contexte sensible', r'^[^\n\r]*(?:diagnostic|pathologie|maladie|hospitalis|traitement m[ée]dical|'
      r'handicap|cancer|VIH|s[ée]roposit|grossesse|religion|syndicat|orientation sexuelle|'

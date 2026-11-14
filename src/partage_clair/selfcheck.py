@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw, ImageFont
 from pypdf import PdfReader, PdfWriter
 
 from . import __version__
-from .core import Box, Document
+from .core import Box, Document, OutputLabel
 
 
 def run(report):
@@ -57,16 +57,27 @@ def run(report):
                     audit = audit_export(doc, folder / 'ocr-masked.png', finding.zones, [finding],
                                          file_digest(folder / 'ocr-masked.png'))
                     assert audit.passed and not audit.approved_residuals
+                    labels = tuple(OutputLabel(box, 'Personne A', 'pseudonym') for box in finding.zones)
+                    doc.export(folder / 'ocr-pseudonym.png', [], labels=labels)
+                    check = audit_export(doc, folder / 'ocr-pseudonym.png', [], [finding],
+                                         file_digest(folder / 'ocr-pseudonym.png'), labels=labels)
+                    assert check.passed and check.labels_ok
                 with Document(folder / 'source.pdf') as doc:
                     pdf_audit = audit_export(doc, folder / 'output.pdf', [Box(1, 0, 0, .5, .5)], [],
                                              file_digest(folder / 'output.pdf'))
                     assert pdf_audit.passed
+                    labels = (OutputLabel(Box(1, .2, .2, .8, .4), '2026', 'generalise'),)
+                    doc.export(folder / 'labelled.pdf', [], labels=labels)
+                    check = audit_export(doc, folder / 'labelled.pdf', [], [],
+                                         file_digest(folder / 'labelled.pdf'), labels=labels)
+                    assert check.passed and check.labels_ok
                 from .ocr import LocalOcr
                 with Image.open(folder / 'ocr-masked.png') as image:
                     text = canonical(LocalOcr().layer(image, 1).text)
                     assert 'alice' not in text and 'dupont' not in text
             result['local_ocr'] = True
             result['export_audit'] = True
+            result['replacement_export'] = True
             # Validate the bundled Tcl/Tk resources as well as the decoder DLLs.
             import tkinter as tk
             root = tk.Tk()

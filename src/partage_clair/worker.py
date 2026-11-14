@@ -98,24 +98,29 @@ class DocumentWorker:
                         # Clear only when submitting from the UI, so an immediate cancel
                         # before this job starts cannot be lost here.
                         groups = args.pop('groups', ())
+                        choices = args.pop('choices', {})
                         if groups:
                             if detection_index is None:
                                 raise ValueError('Analyse requise pour retrouver les noms validés.')
-                            args['boxes'] = [*args['boxes'], *detection_index.approved_zones(groups)]
+                            detection_index.approved_zones(groups)  # Refuse stale/unknown identifiers.
+                        from .methods import redaction_plan
+                        registry = {key: detection_index.findings[key] for key in groups}
+                        args['boxes'], labels = redaction_plan(args['boxes'], registry, choices)
+                        args['labels'] = labels
                         result = document.export(**args, cancel=self.cancel,
                             progress=lambda done, total: self.results.put(
                                 (request, operation, 'progress', (done, total))))
                         from .assurance import file_digest
                         last_export = (result, tuple(args['boxes']),
                                        tuple(detection_index.findings[key] for key in groups),
-                                       file_digest(result))
+                                       file_digest(result), labels)
                     elif operation == 'audit_export':
                         from .assurance import audit_export
                         if document is None or last_export is None:
                             raise ValueError('Exportez d’abord une copie du document.')
-                        path, masks, approved_findings, digest = last_export
+                        path, masks, approved_findings, digest, labels = last_export
                         result = audit_export(document, path, masks, approved_findings, digest,
-                            cancel=self.cancel, progress=lambda done, total: self.results.put(
+                            labels=labels, cancel=self.cancel, progress=lambda done, total: self.results.put(
                                 (request, operation, 'progress', (done, total))))
                     elif operation == 'scan':
                         from .detection import scan

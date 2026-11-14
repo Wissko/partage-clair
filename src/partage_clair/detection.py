@@ -14,14 +14,15 @@ NOT_NAMES = set('nom prénom prenom name client titulaire adresse email mail té
                 'document fictif aucune donnee donnée réelle reelle exemple page bonjour monsieur '
                 'madame docteur reference référence information informations sensibles france '
                 'date naissance numéro numero dossier facture total merci cordialement'.split())
+TRANSLATION = str.maketrans({'’': "'", '‐': '-', '‑': '-', '–': '-',
+                            'œ': 'oe', 'Œ': 'oe', 'æ': 'ae', 'Æ': 'ae'})
 
 
 def normalize(text):
     """Canonical text plus a map back to original character offsets."""
     output, positions = [], []
     for index, char in enumerate(text):
-        char = char.translate(str.maketrans({'’': "'", '‐': '-', '‑': '-', '–': '-',
-                                           'œ': 'oe', 'Œ': 'oe', 'æ': 'ae', 'Æ': 'ae'}))
+        char = char.translate(TRANSLATION)
         for part in unicodedata.normalize('NFKD', char.casefold()):
             if unicodedata.combining(part):
                 continue
@@ -119,8 +120,8 @@ def identifier(kind, value):
 
 def name_terms(name):
     name = canonical(name)
-    words = re.findall(r"[^\W\d_]+(?:[-'][^\W\d_]+)*", name)
-    parts = [word for word in words if len(word) >= 2 and word not in PARTICLES]
+    words = re.findall(r"\b[^\W_]+(?:[-'][^\W_]+)*\b", name)
+    parts = [word for word in words if len(word) >= 2 and not word.isdigit() and word not in PARTICLES]
     return tuple(dict.fromkeys([name, *parts]))
 
 
@@ -154,8 +155,11 @@ PATTERNS = (
     ('Date de naissance', re.compile(r'(?im)\b(?:n[ée]e? le|date de naissance|naissance)[ :]*'
                                      r'(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4})')),
 )
-NAME_LABEL = re.compile(r'(?im)\b(?:nom(?: complet)?|pr[ée]nom(?: et nom)?|name|titulaire|client)'
-                        r'[ :]+([^\n\r|;:\d]{2,70})')
+NAME_LABEL = re.compile(r'(?im)^[ \t]*(?:nom(?: complet| d[’\']usage)?|pr[ée]nom(?: et nom)?|'
+                        r'surnom|pseudonyme|name|titulaire|client)[ :]+([^\n\r|;:]{2,70})')
+NON_PERSON_LABEL = re.compile(r'^(?:adresse|ville|profession|metier|organisme|entreprise|employeur|'
+                              r'etablissement|reference(?: client)?|date(?: de naissance)?|lieu|'
+                              r'iban|courriel|e-?mail|telephone|montant|revenu)\s*:', re.I)
 WORD = re.compile(r"[^\W\d_]+(?:[-'’][^\W\d_]+)*", re.UNICODE)
 
 
@@ -228,9 +232,11 @@ class DetectionIndex:
                 entry[1].extend(layer.zones(start, end))
             for match in NAME_LABEL.finditer(layer.text):
                 value = match.group(1).strip(' ,.-')
-                if 1 <= len(WORD.findall(value)) <= 5:
+                if any(c.isalpha() for c in value) and 1 <= len(WORD.findall(value)) <= 5:
                     names.setdefault(canonical(value), (value, 'Libellé de nom'))
             for line in layer.text.splitlines():
+                if NON_PERSON_LABEL.match(canonical(line)):
+                    continue
                 tokens = list(WORD.finditer(line))
                 run = []
                 for token in [*tokens, None]:
@@ -239,9 +245,8 @@ class DetectionIndex:
                     previous = run[-1] if run else None
                     gap = line[previous.end():token.start()] if previous and token else ' '
                     allowed = (token is not None and key not in NOT_NAMES
-                               and (value[0].isupper() or key in PARTICLES)
-                               and (not previous or gap.isspace()))
-                    if not allowed:
+                               and (value[0].isupper() or key in PARTICLES))
+                    if not allowed or (previous and not gap.isspace()):
                         while run and canonical(run[-1].group()) in PARTICLES:
                             run.pop()
                         if 2 <= len(run) <= 5:

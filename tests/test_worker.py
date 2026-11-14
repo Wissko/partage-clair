@@ -108,3 +108,22 @@ def test_validated_names_export_everywhere_and_survive_rescan(worker, tmp_path):
     failed = result(worker, worker.submit('export', target=tmp_path / 'bad.pdf',
                                          boxes=[], groups=['unknown'], dpi=150))
     assert failed[2] == 'error' and not (tmp_path / 'bad.pdf').exists()
+
+
+def test_worker_replacement_is_bound_to_approved_group_and_audited(worker, tmp_path):
+    from partage_clair.methods import MethodChoice
+    from tests.test_detection import make_pdf
+    source = make_pdf(tmp_path / 'source.pdf', ['Nom : Alice Dupont'])
+    result(worker, worker.submit('open', path=source))[3][1].close()
+    report = result(worker, worker.submit('scan', use_ocr=False))[3]
+    name = next(f for f in report.findings if f.kind == 'Nom')
+    target = tmp_path / 'copy.pdf'
+    event = result(worker, worker.submit('export', target=target, boxes=[], groups=[name.id],
+                                         choices={name.id: MethodChoice('pseudonym', 'Personne A')}))
+    assert event[2] == 'ok'
+    audit = result(worker, worker.submit('audit_export'))
+    assert audit[2] == 'ok' and audit[3].labels_ok and not audit[3].approved_residuals
+    bad = tmp_path / 'bad-copy.pdf'
+    event = result(worker, worker.submit('export', target=bad, boxes=[], groups=[],
+                                         choices={name.id: MethodChoice('pseudonym', 'Personne A')}))
+    assert event[2] == 'error' and not bad.exists()

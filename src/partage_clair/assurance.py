@@ -5,11 +5,11 @@ import math
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageChops
 from pypdf import PdfReader
 
 from .context import DIRECT, INFERENCE, LINKABLE
-from .core import Document, DocumentError, check_cancel
+from .core import Document, DocumentError, check_cancel, label_bounds, label_patch
 
 CRITERIA = {
     'individualisation': ('Individualisation',
@@ -67,14 +67,15 @@ class ExportAudit:
     residual_groups: int
     warnings: tuple[str, ...]
     file_stamp: tuple[int, ...] = ()
+    labels_ok: bool = True
 
     @property
     def passed(self):
-        return (self.structure_ok and self.masks_ok and self.ocr_complete
+        return (self.structure_ok and self.masks_ok and self.labels_ok and self.ocr_complete
                 and not self.approved_residuals)
 
 
-def audit_export(source, path, masks, approved_findings, expected_digest, *, cancel=None, progress=None):
+def audit_export(source, path, masks, approved_findings, expected_digest, *, cancel=None, progress=None, labels=()):
     """Read back only the exported file. Never create new masks or store recognized text."""
     from .detection import canonical, scan
 
@@ -84,6 +85,7 @@ def audit_export(source, path, masks, approved_findings, expected_digest, *, can
         raise DocumentError('La copie a changé depuis son export. Exportez et contrôlez une nouvelle copie.')
     source._verify(path)
     masks_ok = True
+    labels_ok = True
     # Decode the actual embedded raster, avoiding PDF rendering interpolation.
     reader = PdfReader(path) if source.kind == 'pdf' else None
     for number in range(source.pages):
@@ -105,6 +107,21 @@ def audit_export(source, path, masks, approved_findings, expected_digest, *, can
                     masks_ok &= region.getextrema() == ((0, 0),) * 3
                 finally:
                     region.close()
+            for label in labels:
+                if label.box.page != number + 1:
+                    continue
+                bounds = label_bounds(label.box, image.size)
+                region = image.crop(bounds)
+                expected = label_patch(region.size, label.text)
+                try:
+                    difference = ImageChops.difference(region, expected)
+                    try:
+                        labels_ok &= difference.getbbox() is None
+                    finally:
+                        difference.close()
+                finally:
+                    region.close()
+                    expected.close()
         finally:
             image.close()
     with Document(path) as output:
@@ -121,6 +138,8 @@ def audit_export(source, path, masks, approved_findings, expected_digest, *, can
     warnings = list(report.warnings)
     if not masks_ok:
         warnings.append('Des pixels de zones validées ne sont pas entièrement noirs.')
+    if not labels_ok:
+        warnings.append('Un remplacement ne correspond pas aux pixels attendus.')
     if residuals:
         warnings.append('Du texte validé pour masquage est encore reconnu dans la copie.')
     # A fully blacked/blank page contains no OCR text by design. It still needs visual review,
@@ -130,7 +149,7 @@ def audit_export(source, path, masks, approved_findings, expected_digest, *, can
     stat = path.stat()
     return ExportAudit(expected_digest, source.pages, True, bool(masks_ok), complete,
                        residuals, len(report.findings), tuple(warnings),
-                       (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns))
+                       (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns), bool(labels_ok))
 
 
 @dataclass(frozen=True)
@@ -143,13 +162,20 @@ class PreparationScore:
     blockers: tuple[str, ...]
 
 
-def preparation_score(report, masks, *, criteria_reviewed=False, copy_reviewed=False, audit=None):
+def preparation_score(report, masks, *, criteria_reviewed=False, copy_reviewed=False, audit=None, labels=()):
     if report is None:
         return PreparationScore(None, (), 0, 0, tuple(CRITERIA), ('Analyse locale requise.',))
     covered = {f.id for f in report.findings if f.zones and all(zone_covered(z, masks) for z in f.zones)}
     direct = [f for f in report.findings if f.kind in DIRECT]
     indirect = [f for f in report.findings if f.kind not in DIRECT]
     remaining = [f for f in report.findings if f.id not in covered]
+    # Replacement content is still disclosed. Covering its source pixels does not
+    # demonstrate that the retained information or pseudonym cannot be linked.
+    from .detection import Finding
+    retained = [Finding(f'retained-{i}', 'Pseudonyme' if label.method == 'pseudonym'
+                        else 'Information généralisée', '', (label.box,)) for i, label in enumerate(labels)]
+    indirect += retained
+    remaining += retained
     direct_left = sum(f.id not in covered for f in direct)
     indirect_left = len(remaining) - direct_left
     complete = report.pages > 0 and report.ocr_pages == report.pages and not report.warnings
@@ -183,6 +209,9 @@ def preparation_score(report, masks, *, criteria_reviewed=False, copy_reviewed=F
     if combinations:
         blockers.append('Combinaisons d’indices indirects à examiner page(s) ' + ', '.join(combinations)
                         + ' ; aucune association à une personne n’est déduite automatiquement.')
+    if retained:
+        flags = list(dict.fromkeys([*flags, 'correlation']))
+        blockers.append('Des généralisations ou pseudonymes sont conservés : leur risque de recoupement n’est pas mesuré.')
     if not complete:
         blockers.append('Analyse incomplète ou page sans texte reconnu : contrôle manuel indispensable.')
         cap = min(cap, 49)
@@ -198,7 +227,7 @@ def preparation_score(report, masks, *, criteria_reviewed=False, copy_reviewed=F
     if not export_ok or not copy_reviewed:
         blockers.append('Copie actuelle à exporter, contrôler et relire.')
         cap = min(cap, 69)
-    if audit and (not audit.masks_ok or audit.approved_residuals or not audit.structure_ok):
+    if audit and (not audit.masks_ok or not audit.labels_ok or audit.approved_residuals or not audit.structure_ok):
         blockers.append('Anomalie du contrôle de la copie : ne pas partager cet export.')
         cap = min(cap, 39)
     if audit and audit.residual_groups:

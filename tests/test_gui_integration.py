@@ -180,3 +180,51 @@ def test_score_review_and_audit_become_stale_after_edits_or_new_search(tmp_path,
         assert not errors
     finally:
         cleanup(root, app)
+
+
+def test_generalisation_requires_explicit_validation_and_undo_restores_method(tmp_path, monkeypatch, tk_root):
+    from tests.test_detection import make_pdf
+    source = make_pdf(tmp_path / 'age.pdf', ['Nom : Alice Dupont\nAge : 36 ans'])
+    target = tmp_path / 'generalised.pdf'
+    errors = []
+    monkeypatch.setattr('partage_clair.gui.messagebox.askokcancel', lambda *_: True)
+    monkeypatch.setattr('partage_clair.gui.messagebox.showerror', lambda *args: errors.append(args))
+    monkeypatch.setattr('partage_clair.gui.filedialog.asksaveasfilename', lambda **_: str(target))
+    root = tk_root
+    root.report_callback_exception = lambda *args: errors.append(args)
+    app = App(root)
+    try:
+        app.load(source)
+        wait(root, lambda: app.doc and not app.busy)
+        app.detect()
+        wait(root, lambda: app.report is not None and not app.busy)
+        age = next(f for f in app.report.findings if f.kind == 'Âge')
+        app.review.tree.selection_set(age.id)
+        root.update()
+        app.review.method.set('Réduire la précision')
+        app.review.method_detail()
+        assert not app.approved and not app.choices, 'Selecting a method is not approval.'
+        app.review.accept()
+        assert app.choices[age.id].text == '30-39 ans'
+        assert app.redaction_plan()[1] and app.get_preparation_score().indirect_remaining >= 1
+        app.undo_mask()
+        assert not app.choices and not app.approved
+        app.redo_mask()
+        assert app.choices[age.id].text == '30-39 ans'
+        app.export()
+        wait(root, lambda: app.last_output and not app.busy)
+        app.audit_copy()
+        wait(root, lambda: app.audit is not None and not app.busy)
+        assert app.audit.labels_ok and app.audit.masks_ok
+        from partage_clair.methods import MethodChoice
+        name = next(f for f in app.report.findings if f.value == 'Alice Dupont')
+        app.approve_finding(name, MethodChoice('pseudonym', 'Personne B'))
+        app.review.tree.selection_set(age.id)
+        root.update()
+        assert str(app.review.alias['state']) == 'disabled'
+        app.review.tree.selection_set(name.id)
+        root.update()
+        assert app.review.alias.get() == 'Personne B'
+        assert not errors
+    finally:
+        cleanup(root, app)

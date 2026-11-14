@@ -6,13 +6,13 @@ Partage Clair permet de masquer un nom, une adresse ou une référence sur un do
 et de créer une copie sans reprendre ses métadonnées intégrées. Le projet est libre,
 sans compte, sans abonnement, sans API et sans télémétrie.
 
-**Version 0.4 : préversion pour des fichiers de confiance.** Aucun audit de
+**Version 0.5 : préversion pour des fichiers de confiance.** Aucun audit de
 sécurité indépendant n'a encore été réalisé. La détection locale propose des informations
 à vérifier ; elle n'est pas exhaustive. Le programme n'est pas un antivirus ni une sandbox.
 
 ## Démarrer sur Windows sans Python
 
-Téléchargez le ZIP `PartageClair-0.4.0-windows-x64.zip` depuis les
+Téléchargez le ZIP `PartageClair-0.5.0-windows-x64.zip` depuis les
 [versions du projet](https://github.com/Wissko/partage-clair/releases), extrayez-le,
 puis lancez `PartageClair.exe`. Le ZIP contient aussi les instructions et les licences
 des composants embarqués. Il est destiné à Windows 64 bits. Le binaire n'est pas signé
@@ -100,6 +100,23 @@ Les codes QR, codes-barres, signatures manuscrites, photos et autres identifiant
 reconnus demandent encore un contrôle manuel. Élargissez les masques pour englober entièrement les caractères.
 
 ### Score et revue des risques d'anonymisation
+
+Dans la revue des suggestions, choisissez une méthode puis **validez explicitement** :
+
+- **Masquer entièrement** supprime les pixels de l'information dans la copie.
+- **Réduire la précision** propose une année pour une date complète non ambiguë, une tranche
+  de dix ans pour un âge, ou une tranche de mille pour un montant reconnu. Exemple :
+  `36 ans` → `30-39 ans`. Aucun lieu ou fait n'est inventé ; les valeurs ambiguës sont refusées.
+- **Remplacer par un pseudonyme** remplace les zones par le texte choisi, par exemple
+  `Personne A`. Ce n'est pas une garantie d'anonymisation : le pseudonyme peut être recoupé.
+
+Dans les deux derniers cas, les pixels originaux sont d'abord retirés puis le remplacement
+est inscrit dans les pixels exportés, sans couche récupérable contenant l'ancien texte.
+Les informations conservées restent comptées dans le score, plafonné à 69 tant qu'il en
+reste. Le masquage complet prime sur un remplacement qui le chevauche. Deux remplacements
+en conflit sont masqués entièrement. Le contrôle local vérifie aussi les pixels remplacés.
+
+[Démonstration reproductible sur trois pages fictives, avec évolution du score](docs/DEMO.md).
 
 La détection propose aussi des **indices indirects** : dates, horaires, âges, lieux,
 professions/organismes, références, liens, IP, montants et passages contextuels. Plusieurs

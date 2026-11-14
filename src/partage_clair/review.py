@@ -10,7 +10,7 @@ class ReviewWindow:
         self.window = tk.Toplevel(app.root)
         self.window.title('Vérifier les informations sensibles — traitement local')
         self.window.geometry('1000x590')
-        self.window.minsize(760, 430)
+        self.window.minsize(900, 650)
         frame = ttk.Frame(self.window, padding=14)
         frame.pack(fill='both', expand=True)
         ttk.Label(frame, text='Aucune suggestion n’est masquée avant votre validation.',
@@ -44,6 +44,21 @@ class ReviewWindow:
                                    style='Accent.TButton')
         self.validate.pack(side='left')
         ttk.Button(row, text='Retirer cette validation partout', command=self.revoke).pack(side='left', padx=6)
+        methods = ttk.Frame(frame)
+        methods.pack(fill='x', pady=(8, 0))
+        ttk.Label(methods, text='Méthode :').pack(side='left')
+        self.method = tk.StringVar(value='Masquer entièrement')
+        self.method_choice = ttk.Combobox(methods, textvariable=self.method, state='readonly', width=25,
+            values=('Masquer entièrement', 'Réduire la précision', 'Remplacer par un pseudonyme'))
+        self.method_choice.pack(side='left', padx=6)
+        self.method_choice.bind('<<ComboboxSelected>>', lambda _: self.method_detail())
+        self.alias = ttk.Entry(methods, width=22)
+        self.alias.insert(0, 'Personne A')
+        self.alias.configure(state='disabled')
+        self.alias.pack(side='left')
+        ttk.Label(frame, text='Réduire : date → année, âge → tranche de 10 ans, montant → tranche de 1 000. '
+                  'Un pseudonyme reste recoupable ; les deux méthodes conservent un score prudent.',
+                  wraplength=900).pack(anchor='w', pady=(4, 0))
         custom = ttk.Frame(frame)
         custom.pack(fill='x', pady=(12, 0))
         ttk.Label(custom, text='Nom ou détail oublié :').pack(side='left')
@@ -64,7 +79,9 @@ class ReviewWindow:
         self.tree.delete(*self.tree.get_children())
         for finding in self.app.report.findings:
             pages = ', '.join(map(str, finding.pages))
-            state = 'Validé partout' if finding.id in self.app.approved else 'À vérifier'
+            choice = self.app.choices.get(finding.id)
+            state = ('Généralisé' if choice and choice.method == 'generalise' else
+                     'Pseudonyme' if choice else 'Validé partout') if finding.id in self.app.approved else 'À vérifier'
             self.tree.insert('', 'end', iid=finding.id,
                 values=(finding.kind, finding.value, len(finding.zones), pages, state))
         if selection and self.tree.exists(selection[0]):
@@ -87,11 +104,45 @@ class ReviewWindow:
             self.validate.configure(text='Valider ce nom partout' if finding.kind == 'Nom'
                                     else 'Valider toutes les zones')
             self.app.show_finding(finding)
+            choice = self.app.choices.get(finding.id)
+            self.method.set('Réduire la précision' if choice and choice.method == 'generalise' else
+                            'Remplacer par un pseudonyme' if choice else 'Masquer entièrement')
+            if choice and choice.method == 'pseudonym':
+                self.alias.configure(state='normal')
+                self.alias.delete(0, 'end')
+                self.alias.insert(0, choice.text)
+            self.method_detail()
+
+    def method_detail(self):
+        from .methods import generalisation
+        finding = self.chosen()
+        self.alias.configure(state='normal' if self.method.get() == 'Remplacer par un pseudonyme' else 'disabled')
+        if finding:
+            self.validate.configure(text='Valider la généralisation partout' if self.method.get() == 'Réduire la précision'
+                                    else 'Valider le pseudonyme partout' if self.method.get() == 'Remplacer par un pseudonyme'
+                                    else 'Valider ce nom partout' if finding.kind == 'Nom' else 'Valider toutes les zones')
+        if finding and self.method.get() == 'Réduire la précision':
+            proposal = generalisation(finding)
+            self.detail.set(f'Proposition : {proposal}' if proposal else
+                            'Pas de généralisation fiable pour cette valeur ; choisissez le masquage complet.')
 
     def accept(self):
         finding = self.chosen()
         if finding:
-            self.app.approve_finding(finding)
+            from .core import DocumentError
+            from .methods import MethodChoice, generalisation
+            choice = None
+            try:
+                if self.method.get() == 'Réduire la précision':
+                    proposal = generalisation(finding)
+                    if proposal is None:
+                        raise DocumentError('Aucune généralisation fiable proposée. Choisissez le masquage complet.')
+                    choice = MethodChoice('generalise', proposal)
+                elif self.method.get() == 'Remplacer par un pseudonyme':
+                    choice = MethodChoice('pseudonym', self.alias.get().strip())
+                self.app.approve_finding(finding, choice)
+            except DocumentError as error:
+                messagebox.showinfo('Méthode à vérifier', str(error), parent=self.window)
 
     def revoke(self):
         finding = self.chosen()

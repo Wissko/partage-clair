@@ -54,6 +54,14 @@ changements concernés. Le bilan facultatif n'exporte que des compteurs, contrô
 l'empreinte de la copie, jamais les valeurs reconnues, l'utilité libre, les chemins ou
 l'empreinte de l'original. Voir [ANONYMISATION.md](ANONYMISATION.md).
 
+La version 0.5 permet de choisir masquage complet, réduction de précision ou pseudonyme
+avant validation. Les pixels d'origine sont retirés avant toute inscription de nouveau
+texte ; ce texte devient une partie visible de la copie et non une couche PDF éditable.
+Les choix et pseudonymes restent en mémoire jusqu'à l'export de la copie, sans table de
+correspondance sauvegardée par l'application. Le bilan JSON ne les inclut pas. Le contrôle
+local compare aussi les pixels des remplacements à ceux attendus. Ils conservent un risque
+de recoupement explicitement pris en compte dans les limites du score.
+
 ## Hors périmètre
 
 - Garantir une détection exhaustive ou une lecture OCR sans erreur des données personnelles.

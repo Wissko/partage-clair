@@ -74,6 +74,12 @@ Le résultat est le minimum entre la somme des points et les plafonds applicable
 - 95 dans tous les cas : 5 points restent non attribuables, car la connaissance extérieure,
   la rareté réelle et les capacités de recoupement ne sont pas mesurées.
 
+Depuis la version 0.5, toute généralisation ou pseudonyme effectivement affiché ajoute un
+indice indirect **conservé** au dénominateur du score. Recouvrir les pixels de sa source ne
+fait pas disparaître cet indice : il n'est pas compté comme masqué. Le plafond est donc au
+plus 69 tant qu'un remplacement est conservé, même après relecture et contrôle technique.
+Le bilan n'enregistre pas le contenu des remplacements.
+
 Sans analyse, le score est **indisponible**, pas zéro ni cent. Les contrôles non applicables
 ou non démontrés n'impliquent aucune conclusion favorable. Les faux positifs et les indices
 conservés volontairement peuvent diminuer le score ; il n'est pas nécessaire ni toujours
@@ -88,6 +94,11 @@ Le contrôle refuse un fichier ayant changé depuis. Il vérifie les objets PDF 
 ou le PNG RGB sans métadonnées. Il décode les images réellement intégrées au PDF et vérifie
 que les rectangles appliqués contiennent des pixels noirs. Il relance l'OCR local et cherche
 les textes validés encore reconnus, ainsi que de nouvelles propositions.
+
+Pour les zones généralisées ou pseudonymisées, il compare les pixels décodés au canevas
+de remplacement attendu : fond opaque et nouveau texte, sans pixels de la source. Les
+remplacements sont découpés aux limites du masque ; ils ne peuvent pas déborder sur la
+page. L'absence de texte d'origine reconnu ne suffit pas à valider ces pixels.
 
 L'empreinte est revérifiée après le contrôle. Dans l'interface, une modification détectée
 de taille ou de dates système rend le résultat caduc. Le bilan reste lié à son SHA-256 :
@@ -108,7 +119,13 @@ et ne constitue ni un certificat ni une preuve d'audit indépendant. Aucun servi
 n'est appelé par l'analyse ou le contrôle. La synchronisation éventuelle du dossier par
 un autre logiciel reste hors du contrôle de Partage Clair.
 
-La généralisation sémantique et la randomisation automatiques ne sont pas implémentées.
+La version 0.5 propose des généralisations déterministes soumises à validation : date
+complète valide vers son année (années à deux chiffres refusées), âge entier vers une
+tranche de dix ans, montant français non ambigu vers une tranche de mille (borne haute
+exclue). Ainsi 4 200,50 euros devient « 4 000 à <5 000 € ». Il n'y a pas de généralisation
+sémantique libre, de recherche géographique ni de randomisation automatique. Un pseudonyme
+personnalisé reste recoupable ; un remplacement contenant un composant reconnu du nom
+à retirer est refusé. Les masques complets priment sur les remplacements en conflit.
 Le programme ne calcule pas de k-anonymat, l-diversité, t-proximité ou confidentialité
 différentielle sur un PDF libre. Une évaluation de réidentification adaptée au contexte,
 aux destinataires et aux sources externes reste nécessaire pour conclure à une anonymisation.

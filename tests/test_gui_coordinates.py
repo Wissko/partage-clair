@@ -15,6 +15,7 @@ def app():
     instance.page = 1
     instance.boxes = []
     instance.approved = {}
+    instance.choices = {}
     instance.review = None
     instance.history, instance.future = [], []
     instance.busy, instance.selected = None, None

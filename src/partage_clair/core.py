@@ -13,7 +13,7 @@ from pathlib import Path
 from threading import RLock
 
 import pypdfium2 as pdfium
-from PIL import Image, ImageDraw, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 from pypdf import PdfReader
 
 from .pdf_output import ImagePdfWriter
@@ -69,7 +69,39 @@ class Box:
             raise DocumentError("Rectangle invalide : attendu 0 ≤ x0 < x1 ≤ 1 et y0 < y1.")
 
 
-def cover(image: Image.Image, boxes: list[Box]) -> Image.Image:
+@dataclass(frozen=True)
+class OutputLabel:
+    box: Box
+    text: str
+    method: str
+
+    def __post_init__(self):
+        if (not isinstance(self.box, Box) or self.method not in ('generalise', 'pseudonym')
+                or not isinstance(self.text, str) or not 1 <= len(self.text) <= 64
+                or not self.text.strip() or any(ord(c) < 32 for c in self.text)):
+            raise DocumentError('Remplacement invalide : une ligne de 1 à 64 caractères est requise.')
+
+
+def label_bounds(box, size):
+    w, h = size
+    return math.floor(box.x0 * w), math.floor(box.y0 * h), math.ceil(box.x1 * w), math.ceil(box.y1 * h)
+
+
+def label_patch(size, text):
+    """Only replacement pixels; clipping makes it impossible to paint outside the mask."""
+    w, h = size
+    for font_size in range(min(48, h - 4), 3, -1):
+        font = ImageFont.load_default(size=font_size)
+        left, top, right, bottom = font.getbbox(text)
+        if right - left <= w - 4 and bottom - top <= h - 4:
+            patch = Image.new('RGB', size, 'black')
+            ImageDraw.Draw(patch).text(((w - right + left) / 2 - left,
+                                       (h - bottom + top) / 2 - top), text, font=font, fill='white')
+            return patch
+    raise DocumentError('Zone trop petite pour un remplacement lisible. Choisissez le masquage complet.')
+
+
+def cover(image: Image.Image, boxes: list[Box], labels=()) -> Image.Image:
     """Burn opaque pixels into a clean RGB canvas, including a one-pixel margin."""
     clean = Image.new("RGB", image.size, "white")
     if image.mode == 'RGB':
@@ -82,13 +114,24 @@ def cover(image: Image.Image, boxes: list[Box]) -> Image.Image:
             rgba.close()
     draw = ImageDraw.Draw(clean)
     w, h = clean.size
-    for box in boxes:
+    for box in [*boxes, *(label.box for label in labels)]:
         draw.rectangle((
             max(0, math.floor(box.x0 * w) - 1),
             max(0, math.floor(box.y0 * h) - 1),
             min(w - 1, math.ceil(box.x1 * w)),
             min(h - 1, math.ceil(box.y1 * h)),
         ), fill="black")
+    try:
+        for label in labels:
+            left, top, right, bottom = label_bounds(label.box, clean.size)
+            patch = label_patch((right - left, bottom - top), label.text)
+            try:
+                clean.paste(patch, (left, top))
+            finally:
+                patch.close()
+    except BaseException:
+        clean.close()
+        raise
     return clean
 
 
@@ -238,7 +281,7 @@ class Document:
         return sum(pixels)
 
     def export(self, target: str | Path, boxes: list[Box], dpi: int = 150, *,
-               progress: Callable[[int, int], None] | None = None, cancel=None) -> Path:
+               progress: Callable[[int, int], None] | None = None, cancel=None, labels=()) -> Path:
         self._require_open()
         self.estimate(dpi)
         check_cancel(cancel)
@@ -250,6 +293,13 @@ class Document:
             raise DocumentError("Choisissez un nouveau fichier : aucun original ne sera remplacé.")
         if any(not isinstance(box, Box) or box.page > self.pages for box in boxes):
             raise DocumentError("Un masque référence une page inexistante.")
+        if any(not isinstance(label, OutputLabel) or label.box.page > self.pages for label in labels):
+            raise DocumentError('Un remplacement référence une page inexistante.')
+        from .methods import overlaps
+        if any(overlaps(label.box, box) for label in labels for box in boxes):
+            raise DocumentError('Un remplacement chevauche un masque complet. Résolvez le plan avant export.')
+        if any(overlaps(a.box, b.box) for i, a in enumerate(labels) for b in labels[i + 1:]):
+            raise DocumentError('Deux remplacements se chevauchent. Résolvez le plan avant export.')
         grouped = defaultdict(list)
         for box in boxes:
             grouped[box.page].append(box)
@@ -262,7 +312,7 @@ class Document:
         try:
             with os.fdopen(descriptor, 'wb') as stream:
                 if self.kind == 'image':
-                    clean = cover(self.image, boxes)
+                    clean = cover(self.image, boxes, labels)
                     try:
                         clean.save(stream, format='PNG', compress_level=3)
                     finally:
@@ -275,7 +325,7 @@ class Document:
                         check_cancel(cancel)
                         original = self.render(i, dpi)
                         try:
-                            clean = cover(original, grouped[i + 1])
+                            clean = cover(original, grouped[i + 1], [label for label in labels if label.box.page == i + 1])
                         finally:
                             original.close()
                         try:
