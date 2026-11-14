@@ -43,6 +43,7 @@ class DocumentWorker:
     def _run(self):
         document = None
         detection_index = None
+        last_export = None
         cache = OrderedDict()
 
         def clear():
@@ -82,6 +83,7 @@ class DocumentWorker:
                             document.close()
                         document = candidate
                         detection_index = None
+                        last_export = None
                         cache[(0, 90)] = image
                         info = DocumentInfo(Path(args['path']).name, document.kind,
                                             document.pages, tuple(document.sizes))
@@ -103,6 +105,18 @@ class DocumentWorker:
                         result = document.export(**args, cancel=self.cancel,
                             progress=lambda done, total: self.results.put(
                                 (request, operation, 'progress', (done, total))))
+                        from .assurance import file_digest
+                        last_export = (result, tuple(args['boxes']),
+                                       tuple(detection_index.findings[key] for key in groups),
+                                       file_digest(result))
+                    elif operation == 'audit_export':
+                        from .assurance import audit_export
+                        if document is None or last_export is None:
+                            raise ValueError('Exportez d’abord une copie du document.')
+                        path, masks, approved_findings, digest = last_export
+                        result = audit_export(document, path, masks, approved_findings, digest,
+                            cancel=self.cancel, progress=lambda done, total: self.results.put(
+                                (request, operation, 'progress', (done, total))))
                     elif operation == 'scan':
                         from .detection import scan
                         if document is None:
@@ -118,10 +132,11 @@ class DocumentWorker:
                                     (*old.zones, *current.zones))) if current else old)
                             result = replace(result, findings=tuple(index.findings.values()))
                         detection_index = index
-                    elif operation == 'find_name':
+                    elif operation in ('find_name', 'find_term'):
                         if detection_index is None:
                             raise ValueError('Lancez d’abord une analyse complète du document.')
-                        result = detection_index.add_name(args['value'], cancel=self.cancel)
+                        method = detection_index.add_name if operation == 'find_name' else detection_index.add_term
+                        result = method(args['value'], cancel=self.cancel)
                     else:
                         raise ValueError('Opération inconnue.')
                 except Exception as error:

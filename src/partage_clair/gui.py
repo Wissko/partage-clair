@@ -24,6 +24,12 @@ class App:
         self.boxes, self.history, self.future = [], [], []
         self.approved = {}
         self.report, self.review, self.preview_finding = None, None, None
+        self.assurance_window = None
+        self.analysis_revision = 0
+        self.purpose, self.audience = '', ''
+        self.criteria_snapshot, self.copy_snapshot = None, None
+        self.audit, self.audit_snapshot = None, None
+        self.score_cache = None
         self.exported, self.visited = self.mask_state(), set()
         self.page, self.zoom, self.preview_dpi = 0, 1.0, 90
         self.drag, self.selected, self.busy, self.pending = None, None, None, None
@@ -75,7 +81,11 @@ class App:
         self.detect_button.pack(side='left')
         self.review_button = ttk.Button(detection_bar, text='Vérifier les suggestions…', command=self.show_review)
         self.review_button.pack(side='left', padx=6)
-        ttk.Label(detection_bar, text='Local • Rien n’est masqué sans validation').pack(side='left', padx=8)
+        self.assurance_button = ttk.Button(detection_bar, text='Score et revue des risques…',
+                                           command=self.show_assurance)
+        self.assurance_button.pack(side='left')
+        self.score_hint = tk.StringVar(value='Score de préparation : analyse requise • Aucune garantie d’anonymat')
+        ttk.Label(frame, textvariable=self.score_hint, wraplength=1040).pack(anchor='w', pady=(0, 5))
         body = ttk.Frame(frame)
         body.pack(fill='both', expand=True)
         side = ttk.Frame(body)
@@ -157,7 +167,8 @@ class App:
             (self.undo_button, ready and bool(self.history)), (self.redo_button, ready and bool(self.future)),
             (self.delete_button, ready and any(b.page == self.page + 1 for b in self.all_boxes())),
             (self.detect_button, ready), (self.review_button, ready and self.report is not None),
-            (self.save, ready), (self.cancel_button, self.busy in ('export', 'scan')),
+            (self.assurance_button, ready),
+            (self.save, ready), (self.cancel_button, self.busy in ('export', 'scan', 'audit_export')),
             (self.output_button, bool(self.last_output) and not self.busy and not self.dirty()))
         for button, enabled in flags:
             button.configure(state='normal' if enabled else 'disabled')
@@ -165,7 +176,9 @@ class App:
         self.zoom_choice.configure(state='readonly' if ready else 'disabled')
         self.dpi_choice.configure(state='readonly' if ready and self.doc.kind == 'pdf' else 'disabled')
         self.counter.configure(text=f'Page {self.page + 1} / {self.doc.pages}' if self.doc else 'Aucun document')
-        self.cancel_button.configure(text='Annuler l’analyse' if self.busy == 'scan' else 'Annuler l’export')
+        self.cancel_button.configure(text='Annuler le contrôle' if self.busy == 'audit_export'
+                                     else 'Annuler l’analyse' if self.busy == 'scan' else 'Annuler l’export')
+        self.refresh_score()
 
     def begin(self, operation, **arguments):
         self.busy = operation
@@ -226,10 +239,61 @@ class App:
         if self.review:
             self.review.refresh()
 
-    def find_name(self, value):
+    def find_name(self, value, *, exact=False):
         if self.report is not None and not self.busy:
             self.worker.cancel.clear()
-            self.begin('find_name', value=value)
+            self.begin('find_term' if exact else 'find_name', value=value)
+
+    def invalidate_assurance(self):
+        self.criteria_snapshot, self.copy_snapshot, self.audit_snapshot = None, None, None
+
+    def review_signature(self):
+        return self.mask_state(), self.analysis_revision, self.purpose.strip(), self.audience
+
+    def current_audit(self):
+        if (self.audit is None or self.dirty() or self.audit_snapshot !=
+                (self.mask_state(), self.analysis_revision)):
+            return None
+        try:
+            stat = self.last_output.stat()
+            stamp = stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns
+            return self.audit if stamp == self.audit.file_stamp else None
+        except OSError:
+            return None
+
+    def get_preparation_score(self):
+        from .assurance import preparation_score
+        signature = self.review_signature()
+        criteria = self.criteria_snapshot == signature
+        copy = self.copy_snapshot == signature
+        audit = self.current_audit()
+        key = signature, criteria, copy, audit, self.report
+        if self.score_cache is None or self.score_cache[0] != key:
+            self.score_cache = key, preparation_score(self.report, self.all_boxes(),
+                criteria_reviewed=criteria, copy_reviewed=copy, audit=audit)
+        return self.score_cache[1]
+
+    def refresh_score(self):
+        score = self.get_preparation_score()
+        value = f'{score.value}/100' if score.value is not None else 'analyse requise'
+        self.score_hint.set(f'Préparation à l’anonymisation : {value} • Indicateur interne, pas une garantie d’anonymat')
+        if self.assurance_window:
+            self.assurance_window.refresh()
+
+    def show_assurance(self):
+        if self.assurance_window:
+            self.assurance_window.window.lift()
+        else:
+            from .assurance_ui import AssuranceWindow
+            self.assurance_window = AssuranceWindow(self)
+
+    def audit_copy(self):
+        if self.last_output and not self.dirty() and not self.busy:
+            self.worker.cancel.clear()
+            self.audit, self.audit_snapshot, self.copy_snapshot = None, None, None
+            self.pending_audit_snapshot = self.mask_state(), self.analysis_revision
+            self.status.set('Contrôle local de la copie : structure, pixels et seconde lecture OCR…')
+            self.begin('audit_export')
 
     def open(self):
         if self.busy:
@@ -293,6 +357,12 @@ class App:
                         if self.review:
                             self.review.window.destroy()
                         self.report, self.review, self.preview_finding = None, None, None
+                        self.analysis_revision += 1
+                        self.invalidate_assurance()
+                        self.audit = None
+                        self.purpose, self.audience = '', ''
+                        if self.assurance_window:
+                            self.assurance_window.close()
                         self.page, self.zoom, self.preview_dpi = 0, 1.0, 90
                         self.zoom_value.set('Adapter')
                         self.visited, self.last_output = {0}, None
@@ -307,8 +377,14 @@ class App:
                     self.refresh_status()
                 elif operation == 'export':
                     self.last_output, self.exported = payload, self.mask_state()
+                    self.audit, self.audit_snapshot, self.copy_snapshot = None, None, None
                     self.status.set('Copie créée. Ouvrez-la et vérifiez toutes les pages avant de partager.')
+                elif operation == 'audit_export':
+                    self.audit, self.audit_snapshot = payload, self.pending_audit_snapshot
+                    self.status.set('Contrôle terminé : consultez le score, les avertissements et relisez la copie.')
                 elif operation == 'scan':
+                    self.analysis_revision += 1
+                    self.invalidate_assurance()
                     self.report = payload
                     # Existing validations keep their complete geometry after a rescan.
                     registry = {f.id: f for f in payload.findings}
@@ -317,7 +393,9 @@ class App:
                         self.review.refresh()
                     self.show_review()
                     self.status.set(f'{len(payload.findings)} groupe(s) proposé(s). Aucun nouveau masque appliqué.')
-                elif operation == 'find_name':
+                elif operation in ('find_name', 'find_term'):
+                    self.analysis_revision += 1
+                    self.invalidate_assurance()
                     from .detection import ScanReport
                     findings = {f.id: f for f in self.report.findings}
                     findings[payload.id] = payload
@@ -450,10 +528,12 @@ class App:
                 x + px * w, y + py * h, outline='#d96b2b', width=2, fill='black', tags='drag')
 
     def remember(self):
+        self.invalidate_assurance()
         self.history.append(self.mask_state())
         self.future.clear()
 
     def restore_masks(self, state):
+        self.invalidate_assurance()
         boxes, groups = state
         self.boxes, self.approved = list(boxes), dict(groups)
         if self.review:
@@ -539,7 +619,7 @@ class App:
                        groups=list(self.approved), dpi=int(self.dpi.get()))
 
     def cancel_export(self):
-        if self.busy in ('export', 'scan'):
+        if self.busy in ('export', 'scan', 'audit_export'):
             self.worker.cancel.set()
             self.cancel_button.configure(state='disabled')
             self.status.set('Annulation demandée ; la page en cours doit finir de se traiter…')

@@ -9,7 +9,7 @@ class ReviewWindow:
         self.app = app
         self.window = tk.Toplevel(app.root)
         self.window.title('Vérifier les informations sensibles — traitement local')
-        self.window.geometry('940x540')
+        self.window.geometry('1000x590')
         self.window.minsize(760, 430)
         frame = ttk.Frame(self.window, padding=14)
         frame.pack(fill='both', expand=True)
@@ -46,11 +46,14 @@ class ReviewWindow:
         ttk.Button(row, text='Retirer cette validation partout', command=self.revoke).pack(side='left', padx=6)
         custom = ttk.Frame(frame)
         custom.pack(fill='x', pady=(12, 0))
-        ttk.Label(custom, text='Nom oublié par la détection :').pack(side='left')
+        ttk.Label(custom, text='Nom ou détail oublié :').pack(side='left')
         self.name = ttk.Entry(custom)
         self.name.pack(side='left', fill='x', expand=True, padx=8)
         ttk.Button(custom, text='Chercher partout', command=self.search_name).pack(side='left')
         self.name.bind('<Return>', lambda _: self.search_name())
+        self.exact = tk.BooleanVar(value=False)
+        ttk.Checkbutton(frame, text='Rechercher ce texte exact (lieu, organisme, détail contextuel) '
+                        'plutôt que les composants d’un nom', variable=self.exact).pack(anchor='w', pady=(4, 0))
         self.coverage = tk.StringVar()
         ttk.Label(frame, textvariable=self.coverage, wraplength=900).pack(anchor='w', pady=(8, 0))
         self.window.protocol('WM_DELETE_WINDOW', self.close)
@@ -111,7 +114,7 @@ class ReviewWindow:
     def search_name(self):
         value = self.name.get().strip()
         if value and not self.app.busy:
-            self.app.find_name(value)
+            self.app.find_name(value, exact=self.exact.get())
         elif not value:
             messagebox.showinfo('Rechercher un nom', 'Saisissez le nom à rechercher dans tout le document.',
                                 parent=self.window)

@@ -1,4 +1,4 @@
-PARTAGE CLAIR 0.3 — WINDOWS 64 BITS
+PARTAGE CLAIR 0.4 — WINDOWS 64 BITS
 
 1. Extrayez le ZIP dans un dossier de votre choix.
 2. Lancez PartageClair.exe. Python n'est pas nécessaire.
@@ -11,6 +11,18 @@ PARTAGE CLAIR 0.3 — WINDOWS 64 BITS
    Retirer une validation de nom retire ses masques sur toutes les pages ensemble.
    Tracez aussi des rectangles manuels sur les informations non repérées.
 5. Exportez vers un nouveau fichier puis ouvrez et vérifiez la copie.
+
+SCORE ET REVUE DES RISQUES
+La détection propose aussi des dates, lieux, âges, professions, références et contextes.
+Tout reste local et nécessite votre validation avant masquage. La recherche de texte
+exact permet d'ajouter un détail contextuel oublié sans propager ses mots séparément.
+« Score et revue des risques » guide l'examen des trois risques CNIL. Renseignez l'utilité
+de la copie et ses destinataires, puis examinez chaque risque. Exportez, contrôlez la
+copie en local et relisez toutes ses pages avant de déclarer votre relecture.
+Le score de préparation est un indicateur interne, plafonné à 95/100. Il ne mesure pas
+la probabilité de réidentification et n'est ni une certification CNIL ni une garantie
+d'anonymat. Toute modification impose une nouvelle revue des contrôles concernés.
+Le bilan JSON facultatif ne contient pas les valeurs reconnues ni les chemins.
 
 Zoom : liste déroulante ou Ctrl + molette. Déplacez la vue avec les barres de défilement.
 Annuler / rétablir : Ctrl+Z / Ctrl+Y. Supprimer un masque sélectionné : Suppr.

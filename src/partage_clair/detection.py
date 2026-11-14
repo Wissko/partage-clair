@@ -189,7 +189,20 @@ class DetectionIndex:
         self.findings[finding.id] = finding
         return finding
 
+    def add_term(self, value, *, cancel=None):
+        value = ' '.join(value.split())
+        if not 2 <= len(value) <= 160:
+            raise DocumentError('Saisissez un texte de 2 à 160 caractères.')
+        zones = self.find_terms((value,), cancel)
+        if not zones:
+            raise DocumentError('Aucune occurrence reconnue de ce texte.')
+        finding = Finding(identifier('Texte ajouté', value), 'Texte ajouté', value, zones,
+                          (canonical(value),), 'Texte contextuel ajouté : validation requise partout.')
+        self.findings[finding.id] = finding
+        return finding
+
     def suggest(self, cancel=None):
+        from .context import context_hits, explanation
         names = {}
         groups = {}
         for layer in self.layers:
@@ -209,6 +222,10 @@ class DetectionIndex:
                         key = re.sub(r'[ .\-]', '', key)
                     entry = groups.setdefault((kind, key), [value, []])
                     entry[1].extend(layer.zones(start, end))
+            for kind, start, end in context_hits(layer.text):
+                value = layer.text[start:end].strip()
+                entry = groups.setdefault((kind, canonical(value)), [value, []])
+                entry[1].extend(layer.zones(start, end))
             for match in NAME_LABEL.finditer(layer.text):
                 value = match.group(1).strip(' ,.-')
                 if 1 <= len(WORD.findall(value)) <= 5:
@@ -240,7 +257,7 @@ class DetectionIndex:
         for (kind, key), (value, zones) in groups.items():
             zones = merge_zones(zones)
             if zones:
-                finding = Finding(identifier(kind, key), kind, value, zones)
+                finding = Finding(identifier(kind, key), kind, value, zones, reason=explanation(kind))
                 self.findings[finding.id] = finding
         return tuple(sorted(self.findings.values(), key=lambda f: (f.kind != 'Nom', f.kind, f.value.casefold())))
 
@@ -281,6 +298,8 @@ def scan(document, *, use_ocr=True, progress=None, cancel=None):
                 layers.append(layer)
                 total_chars += len(layer.text)
                 ocr_pages += 1
+                if not layer.text.strip():
+                    warnings.append(f'Page {page + 1} : aucun texte OCR reconnu ; visuels à vérifier manuellement.')
             except Exception:
                 warnings.append(f'Page {page + 1} : OCR incomplet ou impossible.')
             finally:

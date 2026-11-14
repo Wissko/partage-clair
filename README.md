@@ -6,13 +6,13 @@ Partage Clair permet de masquer un nom, une adresse ou une référence sur un do
 et de créer une copie sans reprendre ses métadonnées intégrées. Le projet est libre,
 sans compte, sans abonnement, sans API et sans télémétrie.
 
-**Version 0.3 : préversion pour des fichiers de confiance.** Aucun audit de
+**Version 0.4 : préversion pour des fichiers de confiance.** Aucun audit de
 sécurité indépendant n'a encore été réalisé. La détection locale propose des informations
 à vérifier ; elle n'est pas exhaustive. Le programme n'est pas un antivirus ni une sandbox.
 
 ## Démarrer sur Windows sans Python
 
-Téléchargez le ZIP `PartageClair-0.3.0-windows-x64.zip` depuis les
+Téléchargez le ZIP `PartageClair-0.4.0-windows-x64.zip` depuis les
 [versions du projet](https://github.com/Wissko/partage-clair/releases), extrayez-le,
 puis lancez `PartageClair.exe`. Le ZIP contient aussi les instructions et les licences
 des composants embarqués. Il est destiné à Windows 64 bits. Le binaire n'est pas signé
@@ -64,7 +64,7 @@ Par exemple, valider « Alice Dupont » couvre « ALICE DUPONT », « Alice » e
 mais pas « Dupontel ». Un prénom identique désignant une autre personne sera aussi couvert :
 vérifiez les zones proposées avant de valider.
 
-Le champ **Nom oublié par la détection** permet d'ajouter un nom à rechercher partout,
+Le champ **Nom ou détail oublié** permet d'ajouter un nom à rechercher partout,
 puis de valider ses zones. Une faute OCR ou une autre orthographe n'est pas regroupée
 automatiquement : ajoutez-la séparément si nécessaire. Les noms sont proposés par des
 libellés et des indices typographiques locaux, pas par un modèle de compréhension universel.
@@ -98,6 +98,28 @@ sessions ; l'application avertit avant d'abandonner des modifications non export
 
 Les codes QR, codes-barres, signatures manuscrites, photos et autres identifiants non
 reconnus demandent encore un contrôle manuel. Élargissez les masques pour englober entièrement les caractères.
+
+### Score et revue des risques d'anonymisation
+
+La détection propose aussi des **indices indirects** : dates, horaires, âges, lieux,
+professions/organismes, références, liens, IP, montants et passages contextuels. Plusieurs
+indices sur une même page déclenchent une alerte de combinaison. La rareté réelle et
+l'identité des personnes ne sont pas déduites. Cochez la recherche de **texte exact** pour
+ajouter un détail oublié, puis inspectez et validez ses zones ; aucune proposition n'est
+appliquée automatiquement.
+
+**Score et revue des risques** guide l'examen de l'individualisation, de la corrélation et
+de l'inférence. Décrivez les informations utiles à conserver et les destinataires. Après
+validation de votre revue, exportez, utilisez **Contrôler la copie en local**, puis ouvrez
+et relisez toutes ses pages. Ce contrôle vérifie la structure, les pixels des masques et
+le texte encore reconnu par un second passage OCR. Les validations de revue deviennent
+caduques après une modification ou une nouvelle recherche.
+
+Le **score de préparation /100 est plafonné à 95**. Ses points et plafonds sont expliqués
+dans l'interface et [la méthode détaillée](docs/ANONYMISATION.md). C'est un indicateur
+interne de contrôles réalisés, **pas une probabilité, une certification CNIL ou une garantie
+d'anonymat**. Il reste limité si des indices sont exposés ou si l'analyse, la revue ou la
+copie n'ont pas été contrôlées. Le bilan JSON facultatif n'inclut aucune valeur reconnue.
 Le nom du fichier peut lui-même être sensible : le nom proposé est `document-a-partager`.
 
 ## Ce que l'export fait

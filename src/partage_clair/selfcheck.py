@@ -40,6 +40,7 @@ def run(report):
             # The portable must include the OCR models and infer without any HTTP request.
             from unittest.mock import patch
 
+            from .assurance import audit_export, file_digest
             from .detection import canonical, scan
             image = Image.new('RGB', (900, 160), 'white')
             ImageDraw.Draw(image).text((25, 35), 'Nom : Alice Dupont', fill='black',
@@ -53,11 +54,15 @@ def run(report):
                     finding = index.add_name('Alice Dupont')
                     assert finding.zones
                     doc.export(folder / 'ocr-masked.png', list(finding.zones))
+                    audit = audit_export(doc, folder / 'ocr-masked.png', finding.zones, [finding],
+                                         file_digest(folder / 'ocr-masked.png'))
+                    assert audit.passed and not audit.approved_residuals
                 from .ocr import LocalOcr
                 with Image.open(folder / 'ocr-masked.png') as image:
                     text = canonical(LocalOcr().layer(image, 1).text)
                     assert 'alice' not in text and 'dupont' not in text
             result['local_ocr'] = True
+            result['export_audit'] = True
             # Validate the bundled Tcl/Tk resources as well as the decoder DLLs.
             import tkinter as tk
             root = tk.Tk()

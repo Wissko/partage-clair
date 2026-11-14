@@ -72,6 +72,18 @@ def test_worker_rejects_requests_after_shutdown(worker):
         worker.submit('render', page=0, dpi=90)
 
 
+def test_worker_binds_export_audit_to_current_file_and_rejects_tampering(worker, tmp_path):
+    source = tmp_path / 'source.png'
+    Image.new('RGB', (80, 80), 'white').save(source)
+    result(worker, worker.submit('open', path=source))[3][1].close()
+    assert result(worker, worker.submit('audit_export'))[2] == 'error'
+    target = tmp_path / 'copy.png'
+    assert result(worker, worker.submit('export', target=target, boxes=[], dpi=150))[2] == 'ok'
+    target.write_bytes(b'changed')
+    event = result(worker, worker.submit('audit_export'))
+    assert event[2] == 'error' and 'changé' in str(event[3])
+
+
 def test_validated_names_export_everywhere_and_survive_rescan(worker, tmp_path):
     from tests.test_detection import make_pdf
     source = make_pdf(tmp_path / 'names.pdf', ['Nom : Alice Dupont', 'ALICE signe. DUPONT signe.'])

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 — 2026-11-14
+
+- Suggestions locales d'indices indirects, références et passages contextuels ; recherche exacte globale.
+- Revue humaine de l'individualisation, corrélation et inférence, utilité et destinataires de la copie.
+- Score de préparation explicable /100 plafonné à 95, sans allégation de certification CNIL.
+- Vérification locale de la copie : empreinte, structure, pixels masqués et seconde lecture OCR.
+- Validations de revue et contrôle de copie rendus caducs après les changements concernés.
+- Bilan JSON facultatif sans valeurs reconnues, texte OCR, chemins ni empreinte de l'original.
+- Tests de couverture géométrique, plafonds du score, OCR résiduel et invalidation des validations.
+
 ## 0.3.0 — 2026-11-14
 
 - Propositions locales de données sensibles à vérifier avant tout masquage.

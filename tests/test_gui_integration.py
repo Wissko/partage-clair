@@ -127,3 +127,56 @@ def test_detection_needs_validation_and_group_cannot_be_partially_removed(tmp_pa
         assert not errors
     finally:
         cleanup(root, app)
+
+
+def test_score_review_and_audit_become_stale_after_edits_or_new_search(tmp_path, monkeypatch, tk_root):
+    from tests.test_detection import make_pdf
+    source = make_pdf(tmp_path / 'source.pdf', ['Nom : Alice Dupont'])
+    target = tmp_path / 'copy.pdf'
+    monkeypatch.setattr('partage_clair.gui.messagebox.askokcancel', lambda *_: True)
+    monkeypatch.setattr('partage_clair.gui.filedialog.asksaveasfilename', lambda **_: str(target))
+    errors = []
+    monkeypatch.setattr('partage_clair.gui.messagebox.showerror', lambda *args: errors.append(args))
+    root = tk_root
+    root.report_callback_exception = lambda *args: errors.append(args)
+    app = App(root)
+    try:
+        app.load(source)
+        wait(root, lambda: app.doc and not app.busy)
+        assert app.get_preparation_score().value is None
+        app.detect()
+        wait(root, lambda: app.report is not None and not app.busy)
+        assert not app.all_boxes()
+        app.show_assurance()
+        panel = app.assurance_window
+        panel.purpose.set('Partager un exemple sans identité')
+        panel.audience.set('Publication publique')
+        for check in panel.checks.values():
+            check.set(True)
+        panel.validate_review()
+        assert app.criteria_snapshot == app.review_signature()
+        app.approve_finding(next(f for f in app.report.findings if f.value == 'Alice Dupont'))
+        assert app.criteria_snapshot is None
+        panel.validate_review()
+        app.export()
+        wait(root, lambda: app.last_output and not app.busy)
+        assert app.current_audit() is None
+        app.audit_copy()
+        wait(root, lambda: app.audit is not None and not app.busy)
+        assert app.current_audit().passed
+        panel.copy_read.set(True)
+        panel.validate_copy()
+        assert app.copy_snapshot == app.review_signature()
+        assert app.get_preparation_score().value == 95
+        # A timestamp/content change of the controlled file must remove its score credit.
+        target.touch()
+        assert app.current_audit() is None
+        assert app.get_preparation_score().value <= 69
+        app.find_name('Dupont', exact=True)
+        wait(root, lambda: not app.busy)
+        assert app.criteria_snapshot is None and app.copy_snapshot is None and app.current_audit() is None
+        assert next(f for f in app.report.findings if f.kind == 'Texte ajouté')
+        assert len(app.approved) == 1, 'Search must not approve or apply a new mask.'
+        assert not errors
+    finally:
+        cleanup(root, app)

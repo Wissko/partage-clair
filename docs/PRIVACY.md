@@ -46,6 +46,14 @@ ne deviennent des masques qu'après validation. Les noms validés sont propagés
 l'index du document, y compris les composants significatifs du nom et du prénom.
 Voir [DETECTION.md](DETECTION.md) pour les mécanismes, licences et limites.
 
+Depuis la version 0.4, les indices indirects et contextuels sont aussi proposés à validation.
+Le score interne de préparation et la revue guidée des trois risques restent en mémoire.
+Le contrôle facultatif relit la copie exportée en local ; aucun masque supplémentaire
+n'est appliqué par ce contrôle. Les déclarations et résultats sont invalidés après les
+changements concernés. Le bilan facultatif n'exporte que des compteurs, contrôles et
+l'empreinte de la copie, jamais les valeurs reconnues, l'utilité libre, les chemins ou
+l'empreinte de l'original. Voir [ANONYMISATION.md](ANONYMISATION.md).
+
 ## Hors périmètre
 
 - Garantir une détection exhaustive ou une lecture OCR sans erreur des données personnelles.
