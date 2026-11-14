@@ -180,6 +180,49 @@ class Document:
         if self._closed:
             raise DocumentError("Ce document est fermé. Ouvrez-le à nouveau.")
 
+    @serialized_pdfium
+    def text_layer(self, index):
+        """Native glyph geometry in the same cropped/rotated space as rendering."""
+        from .detection import TextLayer
+        self._require_open()
+        if self.kind != 'pdf' or not 0 <= index < self.pages:
+            raise DocumentError('Page PDF inexistante.')
+        page = self.pdf[index]
+        textpage = None
+        try:
+            textpage = page.get_textpage()
+            count = textpage.count_chars()
+            if count > 100_000:
+                raise DocumentError('Page trop dense pour une analyse complète.')
+            w, h = self.sizes[index]
+            # Four device pixels per point keep rounding below a quarter point.
+            pw, ph = math.ceil(w * 4), math.ceil(h * 4)
+            converter = pdfium.PdfPosConv(page, (0, 0, pw, ph, 0))
+            text, boxes = [], []
+            for char_index in range(count):
+                code = pdfium.raw.FPDFText_GetUnicode(textpage, char_index)
+                char = chr(code) if 0 < code <= 0x10ffff else ' '
+                text.append(char)
+                box = None
+                if not char.isspace():
+                    try:
+                        left, bottom, right, top = textpage.get_charbox(char_index, loose=True)
+                        corners = [converter.to_bitmap(x, y) for x in (left, right) for y in (bottom, top)]
+                        x0 = max(0, min(p[0] for p in corners) / pw - 1 / w)
+                        y0 = max(0, min(p[1] for p in corners) / ph - 1 / h)
+                        x1 = min(1, max(p[0] for p in corners) / pw + 1 / w)
+                        y1 = min(1, max(p[1] for p in corners) / ph + 1 / h)
+                        if x0 < x1 and y0 < y1:
+                            box = Box(index + 1, x0, y0, x1, y1)
+                    except (ValueError, pdfium.PdfiumError):
+                        pass
+                boxes.append(box)
+            return TextLayer(index + 1, ''.join(text), tuple(boxes), 'PDF')
+        finally:
+            if textpage is not None:
+                textpage.close()
+            page.close()
+
     def estimate(self, dpi: int = 150) -> int:
         """Validate an export before creating a temporary file."""
         self._require_open()

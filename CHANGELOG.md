@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 — 2026-11-14
+
+- Propositions locales de données sensibles à vérifier avant tout masquage.
+- Texte PDF et OCR CPU des scans et images ; modèles embarqués vérifiés par SHA-256.
+- Validation de noms sur toutes les pages, incluant prénom/nom séparés, casse et accents.
+- Ajout manuel de noms à rechercher globalement, sans rapprochement flou implicite.
+- Couche de groupes validés distincte des masques manuels ; retrait et historique groupés.
+- Export des zones résolu dans l'index du worker ; aucune validation automatique.
+- Ancienne copie désactivée dans l'interface quand de nouvelles modifications attendent l'export.
+- Tests de propagation, rotations/recadrages, OCR sans HTTP et masques non relisibles après export.
+
 ## 0.2.0 — 2026-11-14
 
 - Traitement et export en arrière-plan, progression, annulation et nettoyage des temporaires.

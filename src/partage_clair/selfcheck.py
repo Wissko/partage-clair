@@ -4,7 +4,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from pypdf import PdfReader, PdfWriter
 
 from . import __version__
@@ -37,6 +37,27 @@ def run(report):
                     assert image.getpixel((10, 10)) == (0, 0, 0)
                 finally:
                     image.close()
+            # The portable must include the OCR models and infer without any HTTP request.
+            from unittest.mock import patch
+
+            from .detection import canonical, scan
+            image = Image.new('RGB', (900, 160), 'white')
+            ImageDraw.Draw(image).text((25, 35), 'Nom : Alice Dupont', fill='black',
+                                      font=ImageFont.load_default(size=34))
+            image.save(folder / 'ocr-source.png')
+            image.close()
+            with patch('requests.sessions.Session.request', side_effect=RuntimeError('Network forbidden')):
+                with Document(folder / 'ocr-source.png') as doc:
+                    index, report_ocr = scan(doc)
+                    assert report_ocr.ocr_pages == 1 and not report_ocr.warnings
+                    finding = index.add_name('Alice Dupont')
+                    assert finding.zones
+                    doc.export(folder / 'ocr-masked.png', list(finding.zones))
+                from .ocr import LocalOcr
+                with Image.open(folder / 'ocr-masked.png') as image:
+                    text = canonical(LocalOcr().layer(image, 1).text)
+                    assert 'alice' not in text and 'dupont' not in text
+            result['local_ocr'] = True
             # Validate the bundled Tcl/Tk resources as well as the decoder DLLs.
             import tkinter as tk
             root = tk.Tk()

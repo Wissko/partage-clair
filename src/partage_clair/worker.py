@@ -1,7 +1,7 @@
 """Serial document worker. No Tk calls or callbacks are made on this thread."""
 
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from queue import Queue
 from threading import Event, Thread
@@ -42,6 +42,7 @@ class DocumentWorker:
 
     def _run(self):
         document = None
+        detection_index = None
         cache = OrderedDict()
 
         def clear():
@@ -80,6 +81,7 @@ class DocumentWorker:
                         if document:
                             document.close()
                         document = candidate
+                        detection_index = None
                         cache[(0, 90)] = image
                         info = DocumentInfo(Path(args['path']).name, document.kind,
                                             document.pages, tuple(document.sizes))
@@ -93,9 +95,33 @@ class DocumentWorker:
                             raise ValueError('Aucun document ouvert.')
                         # Clear only when submitting from the UI, so an immediate cancel
                         # before this job starts cannot be lost here.
+                        groups = args.pop('groups', ())
+                        if groups:
+                            if detection_index is None:
+                                raise ValueError('Analyse requise pour retrouver les noms validés.')
+                            args['boxes'] = [*args['boxes'], *detection_index.approved_zones(groups)]
                         result = document.export(**args, cancel=self.cancel,
                             progress=lambda done, total: self.results.put(
                                 (request, operation, 'progress', (done, total))))
+                    elif operation == 'scan':
+                        from .detection import scan
+                        if document is None:
+                            raise ValueError('Aucun document ouvert.')
+                        index, result = scan(document, **args, cancel=self.cancel,
+                            progress=lambda done, total: self.results.put(
+                                (request, operation, 'progress', (done, total))))
+                        if detection_index is not None:
+                            from .detection import merge_zones
+                            for key, old in detection_index.findings.items():
+                                current = index.findings.get(key)
+                                index.findings[key] = (replace(current, zones=merge_zones(
+                                    (*old.zones, *current.zones))) if current else old)
+                            result = replace(result, findings=tuple(index.findings.values()))
+                        detection_index = index
+                    elif operation == 'find_name':
+                        if detection_index is None:
+                            raise ValueError('Lancez d’abord une analyse complète du document.')
+                        result = detection_index.add_name(args['value'], cancel=self.cancel)
                     else:
                         raise ValueError('Opération inconnue.')
                 except Exception as error:

@@ -20,11 +20,14 @@ def main():
         raise SystemExit('Build this distribution on Windows.')
     notices = ROOT / 'build' / 'licenses'
     notices.mkdir(parents=True, exist_ok=True)
-    for name in ('Pillow', 'pypdf', 'pypdfium2', 'pyinstaller'):
+    for name in ('Pillow', 'pypdf', 'pypdfium2', 'pyinstaller', 'rapidocr', 'onnxruntime',
+                 'numpy', 'opencv-python-headless', 'shapely', 'omegaconf', 'pyclipper',
+                 'PyYAML', 'protobuf', 'six', 'tqdm', 'colorlog', 'flatbuffers',
+                 'requests', 'urllib3', 'certifi', 'idna', 'charset_normalizer', 'packaging'):
         dist = distribution(name)
         for entry in dist.files or []:
-            if 'licenses/' in str(entry).replace('\\', '/'):
-                relative = str(entry).replace('\\', '/').split('licenses/', 1)[1]
+            if any(word in entry.name.lower() for word in ('license', 'licence', 'copying', 'notice')):
+                relative = Path(*[part for part in entry.parts if part not in ('.', '..')])
                 target = notices / name / relative
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(dist.locate_file(entry), target)
@@ -35,14 +38,19 @@ def main():
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(entry, target)
     (notices / 'README.txt').write_text(
-        'Partage Clair includes Python, Tcl/Tk, Pillow, pypdf, pypdfium2 and PDFium.\n'
+        'Partage Clair includes Python, Tcl/Tk, Pillow, pypdf, pypdfium2, PDFium,\n'
+        'RapidOCR, ONNX Runtime and their dependencies. OCR model weights are\n'
+        'copyright Baidu and/or applicable PaddleOCR rights holders, Apache-2.0.\n'
+        'Model attribution and exact hashes are in the RapidOCR MODEL_LICENSES notice.\n'
         'The respective authors retain their rights. License texts and third-party\n'
         'PDFium notices are reproduced in this folder. PyInstaller is distributed\n'
         'with its bootloader exception; its license is included.\n', encoding='utf-8')
     subprocess.run([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--noupx',
         '--onefile', '--windowed', '--name', 'PartageClair', '--paths', 'src',
         '--workpath', 'build/pyinstaller', '--specpath', 'build', '--distpath', 'dist',
-        '--collect-all', 'pypdfium2_raw', '--copy-metadata', 'pypdfium2',
+        '--collect-all', 'pypdfium2_raw', '--collect-all', 'rapidocr',
+        '--hidden-import', 'rapidocr.inference_engine.onnxruntime.main',
+        '--copy-metadata', 'pypdfium2',
         '--copy-metadata', 'pypdf', '--copy-metadata', 'Pillow',
         '--add-data', f'{notices};licenses', 'packaging/desktop_entry.py'], cwd=ROOT, check=True)
     exe = ROOT / 'dist' / 'PartageClair.exe'

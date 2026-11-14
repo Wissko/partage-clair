@@ -22,7 +22,9 @@ class App:
         self.root, self.worker = root, DocumentWorker()
         self.doc, self.preview, self.photo = None, None, None
         self.boxes, self.history, self.future = [], [], []
-        self.exported, self.visited = (), set()
+        self.approved = {}
+        self.report, self.review, self.preview_finding = None, None, None
+        self.exported, self.visited = self.mask_state(), set()
         self.page, self.zoom, self.preview_dpi = 0, 1.0, 90
         self.drag, self.selected, self.busy, self.pending = None, None, None, None
         self.closing, self.redraw_after, self.last_output = False, None, None
@@ -66,6 +68,14 @@ class App:
         self.delete_button = ttk.Button(edits, text='Supprimer le masque', command=self.delete_mask)
         self.delete_button.pack(side='left')
         ttk.Label(edits, text='Glissez pour masquer. Cliquez un masque pour le sélectionner.').pack(side='left', padx=10)
+        detection_bar = ttk.Frame(frame)
+        detection_bar.pack(fill='x', pady=(0, 8))
+        self.detect_button = ttk.Button(detection_bar, text='Détecter les informations sensibles',
+                                        command=self.detect)
+        self.detect_button.pack(side='left')
+        self.review_button = ttk.Button(detection_bar, text='Vérifier les suggestions…', command=self.show_review)
+        self.review_button.pack(side='left', padx=6)
+        ttk.Label(detection_bar, text='Local • Rien n’est masqué sans validation').pack(side='left', padx=8)
         body = ttk.Frame(frame)
         body.pack(fill='both', expand=True)
         side = ttk.Frame(body)
@@ -145,15 +155,17 @@ class App:
         flags = ((self.open_button, not self.busy), (self.prev, ready and self.page > 0),
             (self.next, ready and self.page + 1 < self.doc.pages),
             (self.undo_button, ready and bool(self.history)), (self.redo_button, ready and bool(self.future)),
-            (self.delete_button, ready and any(b.page == self.page + 1 for b in self.boxes)),
-            (self.save, ready), (self.cancel_button, self.busy == 'export'),
-            (self.output_button, bool(self.last_output) and not self.busy))
+            (self.delete_button, ready and any(b.page == self.page + 1 for b in self.all_boxes())),
+            (self.detect_button, ready), (self.review_button, ready and self.report is not None),
+            (self.save, ready), (self.cancel_button, self.busy in ('export', 'scan')),
+            (self.output_button, bool(self.last_output) and not self.busy and not self.dirty()))
         for button, enabled in flags:
             button.configure(state='normal' if enabled else 'disabled')
         self.page_list.configure(state='normal' if ready else 'disabled')
         self.zoom_choice.configure(state='readonly' if ready else 'disabled')
         self.dpi_choice.configure(state='readonly' if ready and self.doc.kind == 'pdf' else 'disabled')
         self.counter.configure(text=f'Page {self.page + 1} / {self.doc.pages}' if self.doc else 'Aucun document')
+        self.cancel_button.configure(text='Annuler l’analyse' if self.busy == 'scan' else 'Annuler l’export')
 
     def begin(self, operation, **arguments):
         self.busy = operation
@@ -161,7 +173,63 @@ class App:
         self.controls()
 
     def dirty(self):
-        return tuple(self.boxes) != self.exported
+        return self.mask_state() != self.exported
+
+    def mask_state(self):
+        return tuple(self.boxes), tuple(self.approved.items())
+
+    def all_boxes(self):
+        return [*self.boxes, *(b for finding in self.approved.values() for b in finding.zones)]
+
+    def detect(self):
+        if self.doc and not self.busy:
+            self.worker.cancel.clear()
+            self.status.set('Analyse locale de toutes les pages : texte et OCR…')
+            self.begin('scan', use_ocr=True)
+
+    def show_review(self):
+        if self.report is None:
+            return
+        if self.review:
+            self.review.window.lift()
+        else:
+            from .review import ReviewWindow
+            self.review = ReviewWindow(self)
+
+    def show_finding(self, finding):
+        if not self.busy:
+            self.preview_finding = finding
+            if self.page + 1 not in finding.pages:
+                self.move(finding.pages[0] - 1 - self.page)
+            else:
+                self.draw()
+
+    def approve_finding(self, finding):
+        if self.busy or finding.id in self.approved:
+            return
+        self.remember()
+        self.approved[finding.id] = finding
+        self.selected = None
+        self.draw()
+        self.refresh_status()
+        if self.review:
+            self.review.refresh()
+
+    def revoke_finding(self, key):
+        if self.busy or key not in self.approved:
+            return
+        self.remember()
+        self.approved.pop(key)
+        self.selected = None
+        self.draw()
+        self.refresh_status()
+        if self.review:
+            self.review.refresh()
+
+    def find_name(self, value):
+        if self.report is not None and not self.busy:
+            self.worker.cancel.clear()
+            self.begin('find_name', value=value)
 
     def open(self):
         if self.busy:
@@ -201,13 +269,17 @@ class App:
                 if status == 'progress':
                     done, total = payload
                     self.progress.configure(maximum=total, value=done)
-                    self.status.set(f'Export : page {done} / {total}' if done < total
-                                    else 'Vérification et finalisation de la copie…')
+                    prefix = 'Analyse locale' if operation == 'scan' else 'Export'
+                    self.status.set(f'{prefix} : page {done} / {total}' if done < total
+                                    else ('Recherche des informations à vérifier…' if operation == 'scan'
+                                          else 'Vérification et finalisation de la copie…'))
                     continue
                 self.busy = None
                 if status == 'error':
                     self.progress.configure(value=0)
-                    self.status.set(str(payload))
+                    self.status.set('Analyse annulée ; les validations précédentes sont conservées.'
+                                    if operation == 'scan' and isinstance(payload, ExportCancelled)
+                                    else str(payload))
                     if not self.closing and not isinstance(payload, ExportCancelled):
                         messagebox.showerror('Opération impossible', str(payload))
                 elif operation in ('open', 'render'):
@@ -216,7 +288,11 @@ class App:
                     if operation == 'open':
                         self.doc, self.preview = payload
                         self.boxes, self.history, self.future = [], [], []
-                        self.exported = ()
+                        self.approved = {}
+                        self.exported = self.mask_state()
+                        if self.review:
+                            self.review.window.destroy()
+                        self.report, self.review, self.preview_finding = None, None, None
                         self.page, self.zoom, self.preview_dpi = 0, 1.0, 90
                         self.zoom_value.set('Adapter')
                         self.visited, self.last_output = {0}, None
@@ -230,8 +306,27 @@ class App:
                     self.draw()
                     self.refresh_status()
                 elif operation == 'export':
-                    self.last_output, self.exported = payload, tuple(self.boxes)
+                    self.last_output, self.exported = payload, self.mask_state()
                     self.status.set('Copie créée. Ouvrez-la et vérifiez toutes les pages avant de partager.')
+                elif operation == 'scan':
+                    self.report = payload
+                    # Existing validations keep their complete geometry after a rescan.
+                    registry = {f.id: f for f in payload.findings}
+                    self.approved = {key: registry[key] for key in self.approved if key in registry}
+                    if self.review:
+                        self.review.refresh()
+                    self.show_review()
+                    self.status.set(f'{len(payload.findings)} groupe(s) proposé(s). Aucun nouveau masque appliqué.')
+                elif operation == 'find_name':
+                    from .detection import ScanReport
+                    findings = {f.id: f for f in self.report.findings}
+                    findings[payload.id] = payload
+                    self.report = ScanReport(tuple(findings.values()), self.report.warnings,
+                                             self.report.pages, self.report.ocr_pages)
+                    if self.review:
+                        self.review.refresh()
+                        self.review.tree.selection_set(payload.id)
+                    self.status.set(f'{len(payload.zones)} zone(s) trouvée(s) : validation requise.')
                 self.controls()
         except Empty:
             pass
@@ -244,8 +339,11 @@ class App:
 
     def refresh_status(self):
         if self.doc:
-            self.status.set(f'{len(self.boxes)} masque(s) • {len(self.visited)} / {self.doc.pages} pages consultées'
-                            ' • Métadonnées retirées à l’export')
+            self.status.set(f'{len(self.all_boxes())} masque(s) • {len(self.approved)} groupe(s) validé(s) partout'
+                            f' • {len(self.visited)} / {self.doc.pages} pages consultées'
+                            + (' • Modifications à exporter' if self.dirty()
+                               else ' • Métadonnées retirées à l’export'))
+            self.controls()
 
     def schedule_draw(self, _=None):
         self.drag = None
@@ -275,16 +373,21 @@ class App:
         image.close()
         self.canvas.configure(scrollregion=(0, 0, max(cw, w + 24), max(ch, h + 24)))
         self.canvas.create_image(x, y, image=self.photo, anchor='nw')
-        for index, box in enumerate(self.boxes):
+        for index, box in enumerate(self.all_boxes()):
             if box.page == self.page + 1:
                 self.canvas.create_rectangle(x + box.x0 * w, y + box.y0 * h,
                     x + box.x1 * w, y + box.y1 * h, fill='black',
                     outline='#d96b2b' if index == self.selected else 'black',
                     width=2 if index == self.selected else 1)
+        if self.preview_finding and self.preview_finding.id not in self.approved:
+            for box in self.preview_finding.zones:
+                if box.page == self.page + 1:
+                    self.canvas.create_rectangle(x + box.x0 * w, y + box.y0 * h,
+                        x + box.x1 * w, y + box.y1 * h, outline='#d96b2b', width=3, dash=(5, 3))
         self.page_list.configure(state='normal')
         self.page_list.delete(0, 'end')
         for index in range(self.doc.pages):
-            count = sum(b.page == index + 1 for b in self.boxes)
+            count = sum(b.page == index + 1 for b in self.all_boxes())
             self.page_list.insert('end', f'{"✓" if index in self.visited else "·"} Page {index + 1}   ({count})')
         self.page_list.selection_set(self.page)
         self.page_list.see(self.page)
@@ -329,8 +432,9 @@ class App:
         if not (x <= px <= x + w and y <= py <= y + h):
             return
         point = self.point(event)
-        for index in reversed(range(len(self.boxes))):
-            box = self.boxes[index]
+        boxes = self.all_boxes()
+        for index in reversed(range(len(boxes))):
+            box = boxes[index]
             if box.page == self.page + 1 and box.x0 <= point[0] <= box.x1 and box.y0 <= point[1] <= box.y1:
                 self.selected = index
                 self.draw()
@@ -346,8 +450,14 @@ class App:
                 x + px * w, y + py * h, outline='#d96b2b', width=2, fill='black', tags='drag')
 
     def remember(self):
-        self.history.append(tuple(self.boxes))
+        self.history.append(self.mask_state())
         self.future.clear()
+
+    def restore_masks(self, state):
+        boxes, groups = state
+        self.boxes, self.approved = list(boxes), dict(groups)
+        if self.review:
+            self.review.refresh()
 
     def finish(self, event):
         if not self.drag or self.busy:
@@ -365,16 +475,16 @@ class App:
 
     def undo_mask(self):
         if not self.busy and self.history:
-            self.future.append(tuple(self.boxes))
-            self.boxes = list(self.history.pop())
+            self.future.append(self.mask_state())
+            self.restore_masks(self.history.pop())
             self.selected = None
             self.draw()
             self.refresh_status()
 
     def redo_mask(self):
         if not self.busy and self.future:
-            self.history.append(tuple(self.boxes))
-            self.boxes = list(self.future.pop())
+            self.history.append(self.mask_state())
+            self.restore_masks(self.future.pop())
             self.selected = None
             self.draw()
             self.refresh_status()
@@ -384,9 +494,19 @@ class App:
             return
         index = self.selected
         if index is None:
-            index = next((i for i in reversed(range(len(self.boxes)))
-                          if self.boxes[i].page == self.page + 1), None)
+            boxes = self.all_boxes()
+            index = next((i for i in reversed(range(len(boxes)))
+                          if boxes[i].page == self.page + 1), None)
         if index is not None:
+            if index >= len(self.boxes):
+                offset = index - len(self.boxes)
+                for key, finding in self.approved.items():
+                    if offset < len(finding.zones):
+                        if messagebox.askokcancel('Validation groupée',
+                                f'Retirer la validation de « {finding.value} » sur toutes les pages ?'):
+                            self.revoke_finding(key)
+                        return
+                    offset -= len(finding.zones)
             self.remember()
             self.boxes.pop(index)
             self.selected = None
@@ -403,9 +523,9 @@ class App:
         unvisited = self.doc.pages - len(self.visited)
         warning = f'{unvisited} page(s) non consultée(s).\n\n' if unvisited else ''
         if not messagebox.askokcancel('Vérifier avant de partager', warning +
-                f'{len(self.boxes)} masque(s). Les informations non masquées resteront lisibles.\n\n'
-                'Pensez aux noms, adresses, codes QR et codes-barres. '
-                'Ils ne sont pas détectés automatiquement. Vérifiez aussi la copie finale.'):
+                f'{len(self.all_boxes())} masque(s), {len(self.approved)} groupe(s) validé(s) partout.\n\n'
+                'Seules les suggestions validées et les masques manuels seront appliqués. '
+                'La détection peut manquer des informations. Vérifiez aussi les photos, QR et codes-barres.'):
             return
         ext = '.pdf' if self.doc.kind == 'pdf' else '.png'
         target = filedialog.asksaveasfilename(initialfile=f'document-a-partager{ext}',
@@ -415,10 +535,11 @@ class App:
             self.worker.cancel.clear()
             self.progress.configure(value=0)
             self.status.set('Export local en cours…')
-            self.begin('export', target=Path(target), boxes=list(self.boxes), dpi=int(self.dpi.get()))
+            self.begin('export', target=Path(target), boxes=list(self.boxes),
+                       groups=list(self.approved), dpi=int(self.dpi.get()))
 
     def cancel_export(self):
-        if self.busy == 'export':
+        if self.busy in ('export', 'scan'):
             self.worker.cancel.set()
             self.cancel_button.configure(state='disabled')
             self.status.set('Annulation demandée ; la page en cours doit finir de se traiter…')

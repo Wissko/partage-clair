@@ -1,9 +1,15 @@
-PARTAGE CLAIR 0.2 — WINDOWS 64 BITS
+PARTAGE CLAIR 0.3 — WINDOWS 64 BITS
 
 1. Extrayez le ZIP dans un dossier de votre choix.
 2. Lancez PartageClair.exe. Python n'est pas nécessaire.
 3. Ouvrez un PDF ou une image. Parcourez toutes les pages.
-4. Tracez un rectangle sur chaque information à cacher.
+4. Utilisez « Détecter les informations sensibles », puis vérifiez les propositions.
+   Aucune suggestion n'est masquée avant votre validation. Un nom validé couvre toutes
+   ses occurrences reconnues : nom complet, prénom et nom séparément, sur toutes les pages.
+   Les variantes de casse et d'accents sont regroupées, avec des limites de mots entiers.
+   Vous pouvez ajouter un nom oublié, puis valider ses zones après recherche globale.
+   Retirer une validation de nom retire ses masques sur toutes les pages ensemble.
+   Tracez aussi des rectangles manuels sur les informations non repérées.
 5. Exportez vers un nouveau fichier puis ouvrez et vérifiez la copie.
 
 Zoom : liste déroulante ou Ctrl + molette. Déplacez la vue avec les barres de défilement.
@@ -12,8 +18,11 @@ Ouvrir : Ctrl+O. Exporter : Ctrl+S. Pages : Page précédente / Page suivante.
 Les masques ne sont pas conservés après fermeture. Exportez votre copie avant de quitter.
 
 Le traitement fonctionne hors ligne, sans compte et sans télémétrie.
-Aucune détection automatique : noms, photos, codes QR et codes-barres restent visibles
-si vous ne les masquez pas. Les PDF deviennent des images sans texte sélectionnable,
+La détection par motifs et indices de noms n'est pas exhaustive. L'OCR peut mal lire
+un scan ; une autre orthographe ou une écriture manuscrite peut être manquée. Aucun
+modèle n'est téléchargé pendant l'utilisation. Les propositions et le texte reconnu
+restent en mémoire sur votre ordinateur. Les photos, QR et codes-barres ne sont pas
+détectés automatiquement. Les PDF deviennent des images sans texte sélectionnable,
 liens, formulaires interactifs ou signature numérique valide. L'original est conservé.
 
 L'annulation attend la fin du traitement de la page en cours et ne publie pas de copie finale.

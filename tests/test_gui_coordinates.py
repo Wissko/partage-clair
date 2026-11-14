@@ -14,6 +14,8 @@ def app():
     instance.doc = object()
     instance.page = 1
     instance.boxes = []
+    instance.approved = {}
+    instance.review = None
     instance.history, instance.future = [], []
     instance.busy, instance.selected = None, None
     instance.canvas = SimpleNamespace(canvasx=lambda x: x, canvasy=lambda y: y,

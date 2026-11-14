@@ -37,9 +37,19 @@ l'extérieur, avec une marge d'au moins un pixel à l'export. Les masques ne son
 enregistrés dans le PDF comme des objets réversibles. Le CLI permet de garder une liste
 JSON de masques : ce fichier décrit les positions, pas le contenu du document.
 
+## Analyse locale avant masquage
+
+La version 0.3 propose une détection locale soumise à validation. L'index texte/coordonnées
+est en mémoire. L'OCR utilise des modèles embarqués et des chemins explicites, sans
+téléchargement à l'exécution ; la télémétrie ONNX Runtime est désactivée. Les propositions
+ne deviennent des masques qu'après validation. Les noms validés sont propagés sur tout
+l'index du document, y compris les composants significatifs du nom et du prénom.
+Voir [DETECTION.md](DETECTION.md) pour les mécanismes, licences et limites.
+
 ## Hors périmètre
 
-- Identifier automatiquement les données personnelles, QR, filigranes ou stéganographies.
+- Garantir une détection exhaustive ou une lecture OCR sans erreur des données personnelles.
+- Identifier automatiquement QR, filigranes, stéganographies, visages ou écriture manuscrite.
 - Préserver les signatures, l'accessibilité d'origine ou un PDF interrogeable.
 - Garantir l'anonymat d'un document dont le contenu visible permet une réidentification.
 - Résister à des fichiers malveillants exploitant PDFium/Pillow : pas de sandbox.
@@ -55,6 +65,6 @@ processus utilisateur. Ne publiez jamais un document original dans une issue de 
 
 Pillow (HPND), pypdf (BSD-3-Clause), pypdfium2 (Apache-2.0/BSD-3-Clause avec avis PDFium
 et composants tiers). Leurs licences restent applicables. Le portable Windows regroupe
-Python, Tcl/Tk et ces dépendances avec leurs avis dans `licenses/`, également inclus
+Python, Tcl/Tk, RapidOCR/PaddleOCR, ONNX Runtime et leurs dépendances avec leurs avis dans `licenses/`, également inclus
 dans l'exécutable. Le code du moteur PDF de sortie appartient au projet sous MIT.
 

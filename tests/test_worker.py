@@ -70,3 +70,29 @@ def test_worker_rejects_requests_after_shutdown(worker):
     worker.stop()
     with pytest.raises(RuntimeError):
         worker.submit('render', page=0, dpi=90)
+
+
+def test_validated_names_export_everywhere_and_survive_rescan(worker, tmp_path):
+    from tests.test_detection import make_pdf
+    source = make_pdf(tmp_path / 'names.pdf', ['Nom : Alice Dupont', 'ALICE signe. DUPONT signe.'])
+    result(worker, worker.submit('open', path=source))[3][1].close()
+    event = result(worker, worker.submit('scan', use_ocr=False))
+    assert event[2] == 'ok'
+    report = event[3]
+    finding = next(f for f in report.findings if f.kind == 'Nom' and f.value == 'Alice Dupont')
+    assert finding.pages == (1, 2)
+    custom = result(worker, worker.submit('find_name', value='Dupont'))[3]
+    assert result(worker, worker.submit('scan', use_ocr=False))[2] == 'ok'
+    target = tmp_path / 'names-shared.pdf'
+    event = result(worker, worker.submit('export', target=target, boxes=[], groups=[custom.id], dpi=150))
+    assert event[2] == 'ok'
+    from partage_clair.core import Document
+    with Document(target) as doc:
+        for box in custom.zones:
+            image = doc.render(box.page - 1, 150)
+            assert image.getpixel((round((box.x0 + box.x1) * image.width / 2),
+                                   round((box.y0 + box.y1) * image.height / 2))) == (0, 0, 0)
+            image.close()
+    failed = result(worker, worker.submit('export', target=tmp_path / 'bad.pdf',
+                                         boxes=[], groups=['unknown'], dpi=150))
+    assert failed[2] == 'error' and not (tmp_path / 'bad.pdf').exists()
