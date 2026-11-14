@@ -13,7 +13,7 @@ class AssuranceWindow:
         self.window = tk.Toplevel(app.root)
         self.window.title('Préparation à l’anonymisation — score et revue locale')
         self.window.geometry('940x650')
-        self.window.minsize(780, 580)
+        self.window.minsize(900, 650)
         frame = ttk.Frame(self.window, padding=14)
         frame.pack(fill='both', expand=True)
         self.title = tk.StringVar()
@@ -112,11 +112,14 @@ class AssuranceWindow:
         score = app.get_preparation_score()
         self.title.set('Score de préparation : ' + (f'{score.value}/100' if score.value is not None else 'analyse requise'))
         lines = [f'{name} : {points}/{maximum}' for name, points, maximum in score.components]
-        lines += ['', f'Groupes encore exposés : {score.direct_remaining} directs ; {score.indirect_remaining} indirects.',
+        counts = (f'Groupes proposés encore exposés : {score.direct_remaining} directs ; {score.indirect_remaining} indirects.'
+                  if score.value is not None else 'Groupes exposés : non évalués avant analyse.')
+        lines += ['', counts,
                   '', 'Points à traiter :', *('• ' + b for b in score.blockers), '',
                   'Signaux à examiner (pas une mesure de risque) :']
         for key, (name, _) in CRITERIA.items():
-            lines.append(f'• {name} : ' + ('indices encore exposés' if key in score.flags else
+            lines.append(f'• {name} : ' + ('non évalué : analyse requise' if score.value is None else
+                          'indices encore exposés' if key in score.flags else
                           'aucun signal restant parmi les motifs reconnus ; examen humain nécessaire'))
         lines += ['', 'Pondérations propres au projet : maximum 95. Plafond 49 si analyse incomplète ou '
                   'identifiants directs exposés ; 69 si indices indirects, revue ou copie à vérifier ; '

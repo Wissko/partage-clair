@@ -57,6 +57,10 @@ def run(report):
                     audit = audit_export(doc, folder / 'ocr-masked.png', finding.zones, [finding],
                                          file_digest(folder / 'ocr-masked.png'))
                     assert audit.passed and not audit.approved_residuals
+                with Document(folder / 'source.pdf') as doc:
+                    pdf_audit = audit_export(doc, folder / 'output.pdf', [Box(1, 0, 0, .5, .5)], [],
+                                             file_digest(folder / 'output.pdf'))
+                    assert pdf_audit.passed
                 from .ocr import LocalOcr
                 with Image.open(folder / 'ocr-masked.png') as image:
                     text = canonical(LocalOcr().layer(image, 1).text)

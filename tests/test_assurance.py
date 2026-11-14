@@ -38,6 +38,7 @@ def test_union_coverage_never_double_counts_an_exposed_gap():
 
 def test_score_requires_analysis_and_no_motifs_is_not_proof_of_anonymity():
     assert preparation_score(None, []).value is None
+    assert anonymous_summary(preparation_score(None, []))['direct_remaining'] is None
     empty = ScanReport((), (), 1, 1)
     assert preparation_score(empty, []).value == 15
     assert preparation_score(empty, [], criteria_reviewed=True).value <= 69

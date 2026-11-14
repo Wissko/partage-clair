@@ -218,6 +218,7 @@ def anonymous_summary(score, audit=None):
             'score': score.value, 'maximum_tool': 95, 'cnil_certification': False,
             'components': [{'control': name, 'points': value, 'maximum': maximum}
                            for name, value, maximum in score.components],
-            'direct_remaining': score.direct_remaining, 'indirect_remaining': score.indirect_remaining,
+            'direct_remaining': score.direct_remaining if score.value is not None else None,
+            'indirect_remaining': score.indirect_remaining if score.value is not None else None,
             'criteria_to_review': list(score.flags), 'limitations': list(score.blockers),
             'export_check': export_check}
