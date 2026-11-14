@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "partage-clair"
+version = "0.1.0"
+description = "Prepare PDFs and images for sharing, offline, with permanent pixel redactions."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{name = "Wissko"}]
+dependencies = ["Pillow==13.0.0", "pypdfium2==5.15.2", "pypdf==7.1.0"]
+
+[project.optional-dependencies]
+dev = ["pytest==9.2.0", "ruff==0.17.5", "pip-audit==2.10.1"]
+
+[project.scripts]
+partage-clair = "partage_clair.cli:main"
+
+[project.gui-scripts]
+partage-clair-gui = "partage_clair.gui:main"
+
+[project.urls]
+Repository = "https://github.com/Wissko/partage-clair"
+Issues = "https://github.com/Wissko/partage-clair/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
