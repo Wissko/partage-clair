@@ -1,0 +1,30 @@
+PARTAGE CLAIR 0.2 — WINDOWS 64 BITS
+
+1. Extrayez le ZIP dans un dossier de votre choix.
+2. Lancez PartageClair.exe. Python n'est pas nécessaire.
+3. Ouvrez un PDF ou une image. Parcourez toutes les pages.
+4. Tracez un rectangle sur chaque information à cacher.
+5. Exportez vers un nouveau fichier puis ouvrez et vérifiez la copie.
+
+Zoom : liste déroulante ou Ctrl + molette. Déplacez la vue avec les barres de défilement.
+Annuler / rétablir : Ctrl+Z / Ctrl+Y. Supprimer un masque sélectionné : Suppr.
+Ouvrir : Ctrl+O. Exporter : Ctrl+S. Pages : Page précédente / Page suivante.
+Les masques ne sont pas conservés après fermeture. Exportez votre copie avant de quitter.
+
+Le traitement fonctionne hors ligne, sans compte et sans télémétrie.
+Aucune détection automatique : noms, photos, codes QR et codes-barres restent visibles
+si vous ne les masquez pas. Les PDF deviennent des images sans texte sélectionnable,
+liens, formulaires interactifs ou signature numérique valide. L'original est conservé.
+
+L'annulation attend la fin du traitement de la page en cours et ne publie pas de copie finale.
+Un fichier temporaire contenant uniquement les pages déjà masquées est utilisé dans le
+dossier de sortie puis supprimé. Après un arrêt brutal du système, il peut rester présent.
+
+Cette préversion n'a pas d'audit de sécurité indépendant. Elle n'isole pas les décodeurs :
+ne l'utilisez pas pour ouvrir un fichier suspect. L'exécutable n'est pas signé numériquement.
+Ne désactivez pas les protections de votre ordinateur pour le lancer.
+
+Code, installation depuis les sources, mises à jour et limites :
+https://github.com/Wissko/partage-clair
+
+Licence MIT pour le code Partage Clair. Licences des composants inclus : dossier licenses/.

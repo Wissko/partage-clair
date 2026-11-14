@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 — 2026-11-14
+
+- Traitement et export en arrière-plan, progression, annulation et nettoyage des temporaires.
+- Écriture PDF page par page, compression sans perte et canal gris lorsque les pixels le permettent.
+- Zoom jusqu'à 400 %, défilement et liste des pages consultées avec compte des masques.
+- Sélection/suppression, annuler/rétablir et raccourcis clavier ; avertissement avant perte des masques.
+- Vérification de l'export avant publication exclusive ; repli pour systèmes sans liens physiques.
+- Exécutable Windows portable avec licences, autotest hors ligne et workflow de construction.
+- Tests d'interruption, conflits de fichiers, fidélité des pixels, worker et vraie boucle Tk.
+
 ## 0.1.0 — 2026-11-14
 
 - Application locale en français pour PDF, PNG, JPEG et WebP statique.

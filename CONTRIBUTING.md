@@ -17,7 +17,7 @@ d'usage ni appel réseau au traitement des documents.
 
 - Revue indépendante du moteur d'export et corpus de documents synthétiques.
 - Navigation entièrement au clavier, zoom et positionnement précis des masques.
-- Export non bloquant et annulation.
-- Installateurs signés après validation et collecte des avis des dépendances.
+- Revue du moteur PDF de sortie et essais sur FAT/exFAT et partages réseau.
+- Signature du portable et distribution macOS/Linux après validation.
 - Traduction anglaise de l'interface.
 

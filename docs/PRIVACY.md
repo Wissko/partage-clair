@@ -10,8 +10,23 @@ L'original reste sur disque. L'application ne fait aucune requête réseau.
 
 PDF : instantané en mémoire → PDFium → pixels RGB → masques opaques → nouveau PDF
 avec un unique XObject image par page et un flux de placement. Aucun objet source n'est
-importé. Compression Flate sans perte. Le PDF est rouvert pour vérifier le nombre de
+importé. Compression Flate avec prédiction PNG sans perte. Les pages strictement grises
+sont stockées sur un canal sans modifier leurs pixels. Le PDF est rouvert pour vérifier le nombre de
 pages et l'absence de métadonnées, texte extractible et annotations.
+
+Les pages sont écrites progressivement dans un fichier temporaire du dossier de sortie.
+Ce fichier ne contient que des pixels déjà masqués. Après vérification, une création
+exclusive par lien physique publie le résultat sans écrasement sur les systèmes compatibles.
+Sur FAT/exFAT ou un partage sans liens physiques, une copie exclusive est utilisée ; elle
+préserve le refus d'écrasement et supprime la copie partielle en cas d'erreur gérée.
+Le temporaire est nettoyé en fin d'opération, y compris lors d'une annulation. Un arrêt
+brutal peut laisser un temporaire, et une interruption brutale pendant la copie de repli
+peut laisser une sortie incomplète. Aucun effacement sécurisé n'est revendiqué.
+
+L'interface communique avec un worker par files de messages ; aucun appel Tk n'est fait
+depuis le worker. Les appels PDFium sont sérialisés, y compris entre plusieurs documents.
+Le cache d'aperçus est borné et n'est jamais enregistré sur disque. La fermeture attend
+la fin du traitement natif en cours avant de libérer les documents.
 
 Image : Pillow → correction d'orientation EXIF → nouveau canevas RGB → masques opaques
 → PNG sans paramètres EXIF, ICC ou texte. La transparence est aplatie sur blanc pour
@@ -39,6 +54,7 @@ processus utilisateur. Ne publiez jamais un document original dans une issue de 
 ## Dépendances
 
 Pillow (HPND), pypdf (BSD-3-Clause), pypdfium2 (Apache-2.0/BSD-3-Clause avec avis PDFium
-et composants tiers). Leurs licences restent applicables. Aucun binaire regroupant ces
-dépendances n'est distribué par ce dépôt ; une future distribution devra inclure leurs avis.
+et composants tiers). Leurs licences restent applicables. Le portable Windows regroupe
+Python, Tcl/Tk et ces dépendances avec leurs avis dans `licenses/`, également inclus
+dans l'exécutable. Le code du moteur PDF de sortie appartient au projet sous MIT.
 
