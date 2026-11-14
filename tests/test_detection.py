@@ -134,6 +134,14 @@ def test_unknown_validation_and_missing_name_are_refused():
         index.add_name('Inconnu Absent')
 
 
+def test_email_ocr_spacing_is_grouped_and_entire_region_is_covered():
+    index = DetectionIndex([simple_layer('alice@example.test', 1),
+                            simple_layer('ALICE @ example . test', 2)])
+    findings = [f for f in index.suggest() if f.kind == 'E-mail']
+    assert len(findings) == 1 and findings[0].pages == (1, 2)
+    assert findings[0].zones[1].x1 == index.layers[1].boxes[-1].x1
+
+
 def test_cancelled_analysis_returns_no_partial_report(tmp_path):
     path = make_pdf(tmp_path / 'source.pdf', ['Nom : Alice Dupont'] * 3)
     cancel = Event()
@@ -164,7 +172,7 @@ def test_real_ocr_runs_without_network_on_image_and_scan(tmp_path, monkeypatch):
     with Document(tmp_path / 'scan.png') as doc:
         index, report = scan(doc)
         assert report.ocr_pages == 1 and not report.warnings
-        assert any(f.kind == 'E-mail' for f in report.findings), LocalOcr().layer(doc.render(0, 150), 1).text
+        assert any(f.kind == 'E-mail' for f in report.findings)
         finding = index.add_name('Alice Dupont')
         doc.export(tmp_path / 'masked.png', list(finding.zones))
     with Image.open(tmp_path / 'masked.png') as image:

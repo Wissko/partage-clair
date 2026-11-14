@@ -25,6 +25,8 @@ E-mails, téléphones français, IBAN (modulo 97), numéros de carte (Luhn), adr
 dates de naissance explicitement libellées. Les noms sont proposés à partir de libellés
 et de suites de mots avec des indices de capitalisation. Il ne s'agit pas d'une reconnaissance
 universelle des personnes : des noms peuvent être manqués et des intitulés pris pour des noms.
+Les e-mails tolèrent les espaces horizontaux ajoutés par l'OCR autour de `@` et des points
+du domaine ; la zone proposée couvre aussi ces espaces.
 
 ## Noms validés
 

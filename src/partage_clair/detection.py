@@ -144,7 +144,8 @@ def valid_card(value):
 
 
 PATTERNS = (
-    ('E-mail', re.compile(r"[\w.!#$%&'*+/=?^`{|}~-]+@[\w-]+(?:\.[\w-]+)+", re.UNICODE)),
+    ('E-mail', re.compile(r"[\w.!#$%&'*+/=?^`{|}~-]+[ \t]*@[ \t]*[\w-]+"
+                          r"(?:[ \t]*\.[ \t]*[\w-]+)+", re.UNICODE)),
     ('Téléphone', re.compile(r'(?<!\w)(?:\+33[ .\-]?[1-9]|0[1-9])(?:[ .\-]?\d{2}){4}(?!\d)')),
     ('IBAN', re.compile(r'(?<!\w)[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]){11,30}(?!\w)', re.I)),
     ('Carte bancaire', re.compile(r'(?<!\d)\d(?:[ \-]?\d){12,18}(?!\d)')),
@@ -202,6 +203,8 @@ class DetectionIndex:
                     if kind == 'Carte bancaire' and not valid_card(value):
                         continue
                     key = canonical(value)
+                    if kind == 'E-mail':
+                        key = re.sub(r'\s', '', key)
                     if kind in ('IBAN', 'Téléphone', 'Carte bancaire'):
                         key = re.sub(r'[ .\-]', '', key)
                     entry = groups.setdefault((kind, key), [value, []])
