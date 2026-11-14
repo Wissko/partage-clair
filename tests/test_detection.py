@@ -164,7 +164,7 @@ def test_real_ocr_runs_without_network_on_image_and_scan(tmp_path, monkeypatch):
     with Document(tmp_path / 'scan.png') as doc:
         index, report = scan(doc)
         assert report.ocr_pages == 1 and not report.warnings
-        assert any(f.kind == 'E-mail' for f in report.findings)
+        assert any(f.kind == 'E-mail' for f in report.findings), LocalOcr().layer(doc.render(0, 150), 1).text
         finding = index.add_name('Alice Dupont')
         doc.export(tmp_path / 'masked.png', list(finding.zones))
     with Image.open(tmp_path / 'masked.png') as image:
