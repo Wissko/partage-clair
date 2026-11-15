@@ -11,6 +11,90 @@ from . import __version__
 from .core import Box, Document, OutputLabel
 
 
+def check_rules_batch(root, app, folder, result):
+    """Exercise the frozen CSV import and batch UI with both AI constructors forbidden."""
+    import time
+    from unittest.mock import patch
+
+    from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
+
+    from .detection_options import DetectionOptions
+
+    writer = PdfWriter()
+    page = writer.add_blank_page(400, 300)
+    page[NameObject('/Resources')] = DictionaryObject({NameObject('/Font'): DictionaryObject({
+        NameObject('/F1'): DictionaryObject({NameObject('/Type'): NameObject('/Font'),
+            NameObject('/Subtype'): NameObject('/Type1'), NameObject('/BaseFont'): NameObject('/Helvetica')})})})
+    content = DecodedStreamObject()
+    content.set_data(b'BT /F1 18 Tf 35 230 Td (nadia benali signe.) Tj ET')
+    page[NameObject('/Contents')] = writer._add_object(content)
+    source = folder / 'strict-source.pdf'
+    writer.write(source)
+    original = source.read_bytes()
+    catalog = folder / 'employees.csv'
+    catalog.write_text('prenom;nom\nNadia;Benali\n', encoding='utf-8-sig')
+    errors, batch = [], None
+
+    def wait(predicate):
+        deadline = time.monotonic() + 25
+        while not predicate() and not errors and time.monotonic() < deadline:
+            root.update()
+            time.sleep(.01)
+        assert predicate() and not errors
+
+    try:
+        with patch('partage_clair.ocr.LocalOcr.__init__', side_effect=RuntimeError('OCR forbidden')) as ocr, \
+             patch('partage_clair.ner.LocalNer.__init__', side_effect=RuntimeError('NER forbidden')) as ner, \
+             patch('partage_clair.batch_ui.messagebox.showerror', side_effect=lambda *a, **k: errors.append(a)):
+            app.show_batch()
+            batch = app.batch_window
+            batch.set_detection_options(DetectionOptions(mode='rules', profile='insurance'))
+            batch.settings()
+            picker = batch.detection_window
+            batch.import_references(catalog, 'employees')
+            wait(lambda: not batch.busy)
+            assert len(picker.entries) == 1
+            picker.apply()
+            batch.files = (source, folder / 'ocr-source.png')
+            batch.analyze()
+            wait(lambda: not batch.busy)
+            assert len(batch.jobs) == 2 and not any(j.ready or j.approved for j in batch.jobs.values())
+            assert batch.jobs['2'].report.manual_pages == (1,)
+            batch.documents.selection_set('1')
+            batch.select_document()
+            wait(lambda: not batch.busy and batch.preview is not None)
+            finding = next(f for f in batch.job().report.findings if f.value == 'Nadia Benali')
+            batch.findings.selection_set(finding.id)
+            assert not batch.job().approved
+            batch.candidates(True)
+            wait(lambda: not batch.busy)
+            assert not batch.job().ready
+            batch.action('review_page', page=1)
+            wait(lambda: not batch.busy)
+            batch.action('approve_document')
+            wait(lambda: not batch.busy)
+            output = folder / 'strict-output'
+            output.mkdir()
+            batch.begin('export', folder=output)
+            wait(lambda: not batch.busy)
+            assert batch.jobs['1'].output and not batch.jobs['2'].output
+            assert source.read_bytes() == original
+            assert not PdfReader(batch.jobs['1'].output).pages[0].extract_text()
+            ocr.assert_not_called()
+            ner.assert_not_called()
+            result.update(strict_rules=True, reference_import=True, batch_review=True)
+    finally:
+        if batch:
+            batch.worker.stop()
+            batch.worker.thread.join(timeout=10)
+            assert not batch.worker.thread.is_alive()
+            if batch.poll_after:
+                root.after_cancel(batch.poll_after)
+            batch.clear_preview()
+            batch.window.destroy()
+            app.batch_window = None
+
+
 def run(report):
     result = {'version': __version__, 'success': False}
     try:
@@ -125,6 +209,7 @@ def run(report):
                     assert all(category_for(f.kind) in app.detection_options.categories for f in app.report.findings)
                     result['category_selection'] = True
                     result['business_dictionary'] = True
+                    check_rules_batch(root, app, folder, result)
             finally:
                 app.worker.stop()
                 app.worker.thread.join(timeout=10)

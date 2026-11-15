@@ -19,7 +19,7 @@ from .worker import DocumentWorker
 
 
 class App:
-    def __init__(self, root, initial_path=None):
+    def __init__(self, root, initial_path=None, *, detection_options=None):
         self.root, self.worker = root, DocumentWorker()
         self.doc, self.preview, self.photo = None, None, None
         self.boxes, self.history, self.future = [], [], []
@@ -28,7 +28,8 @@ class App:
         self.report, self.review, self.preview_finding = None, None, None
         self.assurance_window = None
         self.detection_window = None
-        self.detection_options = DetectionOptions()
+        self.batch_window = None
+        self.detection_options = detection_options or DetectionOptions()
         self.analysis_revision = 0
         self.purpose, self.audience = '', ''
         self.criteria_snapshot, self.copy_snapshot = None, None
@@ -57,6 +58,8 @@ class App:
         bar.pack(fill='x')
         self.open_button = ttk.Button(bar, text='Ouvrir…', command=self.open)
         self.open_button.pack(side='left')
+        self.batch_button = ttk.Button(bar, text='Traiter un lot…', command=self.show_batch)
+        self.batch_button.pack(side='left', padx=6)
         self.prev = ttk.Button(bar, text='←', command=lambda: self.move(-1))
         self.prev.pack(side='left', padx=(12, 2))
         self.counter = ttk.Label(bar, text='Aucun document')
@@ -92,6 +95,7 @@ class App:
                                              command=self.show_detection_options)
         self.detection_settings.pack(side='right')
         self.scope_hint = tk.StringVar(value='Détection : toutes les catégories • Expressions personnalisées : 0')
+        self.update_scope_hint()
         ttk.Label(frame, textvariable=self.scope_hint, wraplength=1040).pack(anchor='w', pady=(0, 4))
         self.score_hint = tk.StringVar(value='Score de préparation : analyse requise • Aucune garantie d’anonymat')
         ttk.Label(frame, textvariable=self.score_hint, wraplength=1040).pack(anchor='w', pady=(0, 5))
@@ -171,14 +175,15 @@ class App:
 
     def controls(self):
         ready = bool(self.doc) and not self.busy
-        flags = ((self.open_button, not self.busy), (self.prev, ready and self.page > 0),
+        flags = ((self.open_button, not self.busy), (self.batch_button, not self.busy),
+            (self.prev, ready and self.page > 0),
             (self.next, ready and self.page + 1 < self.doc.pages),
             (self.undo_button, ready and bool(self.history)), (self.redo_button, ready and bool(self.future)),
             (self.delete_button, ready and any(b.page == self.page + 1 for b in self.all_boxes())),
             (self.detect_button, ready), (self.review_button, ready and self.report is not None),
             (self.assurance_button, ready),
             (self.detection_settings, not self.busy),
-            (self.save, ready), (self.cancel_button, self.busy in ('export', 'scan', 'audit_export')),
+            (self.save, ready), (self.cancel_button, self.busy in ('export', 'scan', 'audit_export', 'import_references')),
             (self.output_button, bool(self.last_output) and not self.busy and not self.dirty()))
         for button, enabled in flags:
             button.configure(state='normal' if enabled else 'disabled')
@@ -187,6 +192,7 @@ class App:
         self.dpi_choice.configure(state='readonly' if ready and self.doc.kind == 'pdf' else 'disabled')
         self.counter.configure(text=f'Page {self.page + 1} / {self.doc.pages}' if self.doc else 'Aucun document')
         self.cancel_button.configure(text='Annuler le contrôle' if self.busy == 'audit_export'
+                                     else 'Annuler l’import' if self.busy == 'import_references'
                                      else 'Annuler l’analyse' if self.busy == 'scan' else 'Annuler l’export')
         self.refresh_score()
 
@@ -211,8 +217,23 @@ class App:
     def detect(self):
         if self.doc and not self.busy and not self.closing:
             self.worker.cancel.clear()
-            self.status.set('Analyse locale de toutes les pages : texte et OCR…')
+            self.status.set('Analyse sans IA : texte PDF, règles et listes…' if self.detection_options.mode == 'rules'
+                            else 'Analyse locale de toutes les pages : texte et OCR…')
             self.begin('scan', use_ocr=True, options=self.detection_options)
+
+    def show_batch(self):
+        if self.busy:
+            return
+        if self.batch_window:
+            self.batch_window.window.lift()
+        else:
+            from .batch_ui import BatchWindow
+            self.batch_window = BatchWindow(self)
+
+    def import_references(self, path, source):
+        if not self.busy:
+            self.worker.cancel.clear()
+            self.begin('import_references', path=path, source=source)
 
     def show_detection_options(self):
         if self.detection_window:
@@ -225,9 +246,7 @@ class App:
         if self.busy or options == self.detection_options:
             return
         self.detection_options = options
-        count = len(options.categories)
-        scope = 'toutes les catégories' if options.full_scope else f'{count}/{len(CATEGORIES)} catégories (partiel)'
-        self.scope_hint.set(f'Détection : {scope} • Expressions personnalisées : {len(options.terms)}')
+        self.update_scope_hint()
         # Old masks remain explicit approvals; an old score cannot describe the new scope.
         self.analysis_revision += 1
         self.invalidate_assurance()
@@ -236,6 +255,15 @@ class App:
             self.review.close()
         self.controls()
         self.detect()
+
+    def update_scope_hint(self):
+        options = self.detection_options
+        count = len(options.categories)
+        scope = 'toutes les catégories' if options.full_scope else f'{count}/{len(CATEGORIES)} catégories (partiel)'
+        from .profiles import PROFILES
+        mode = 'Sans IA' if options.mode == 'rules' else 'Assisté local (OCR + modèle)'
+        self.scope_hint.set(f'{mode} • Profil {PROFILES[options.profile]} • {scope} '
+                            f'• {len(options.references)} informations de listes • {len(options.terms)} expressions')
 
     def show_review(self):
         if self.report is None:
@@ -340,7 +368,7 @@ class App:
             self.audit, self.audit_snapshot, self.copy_snapshot = None, None, None
             self.pending_audit_snapshot = self.mask_state(), self.analysis_revision
             self.status.set('Contrôle local de la copie : structure, pixels et seconde lecture OCR…')
-            self.begin('audit_export')
+            self.begin('audit_export', mode=self.detection_options.mode)
 
     def open(self):
         if self.busy:
@@ -459,6 +487,10 @@ class App:
                         self.review.refresh()
                         self.review.tree.selection_set(payload.id)
                     self.status.set(f'{len(payload.zones)} zone(s) trouvée(s) : validation requise.')
+                elif operation == 'import_references':
+                    if self.detection_window:
+                        self.detection_window.receive_entries(*payload)
+                    self.status.set('Liste importée en mémoire ; appliquez les choix pour l’utiliser.')
                 self.controls()
         except Empty:
             pass
@@ -687,10 +719,11 @@ class App:
             self.progress.configure(value=0)
             self.status.set('Export local en cours…')
             self.begin('export', target=Path(target), boxes=list(self.boxes),
-                       groups=list(self.approved), choices=dict(self.choices), dpi=int(self.dpi.get()))
+                       groups=list(self.approved), choices=dict(self.choices), dpi=int(self.dpi.get()),
+                       mode=self.detection_options.mode)
 
     def cancel_export(self):
-        if self.busy in ('export', 'scan', 'audit_export'):
+        if self.busy in ('export', 'scan', 'audit_export', 'import_references'):
             self.worker.cancel.set()
             self.cancel_button.configure(state='disabled')
             self.status.set('Annulation demandée ; la page en cours doit finir de se traiter…')
@@ -708,6 +741,9 @@ class App:
     def close(self):
         if self.closing:
             return
+        if self.batch_window:
+            self.batch_window.close()
+            return
         if self.dirty() and not messagebox.askokcancel('Masques non exportés',
                 'Les modifications de masques non exportées seront perdues. Fermer ?'):
             return
@@ -720,9 +756,10 @@ class App:
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Partage Clair — interface locale')
     parser.add_argument('source', nargs='?', type=Path, help='Document à ouvrir au démarrage')
+    parser.add_argument('--sans-ia', action='store_true', help='Texte PDF, règles et listes uniquement, sans OCR ni modèle')
     args = parser.parse_args(argv)
     root = tk.Tk()
-    App(root, args.source)
+    App(root, args.source, detection_options=DetectionOptions(mode='rules' if args.sans_ia else 'assisted'))
     root.mainloop()
 
 

@@ -1,4 +1,4 @@
-PARTAGE CLAIR 0.7.0 — WINDOWS 64 BITS
+PARTAGE CLAIR 0.8.0 — WINDOWS 64 BITS
 
 1. Extrayez le ZIP dans un dossier de votre choix.
 2. Lancez PartageClair.exe. Python n'est pas nécessaire.
@@ -18,6 +18,27 @@ manuellement. Le changement de page et le zoom ne déclenchent pas de nouvelle a
 Un nouveau document efface les validations précédentes : elles ne sont jamais transférées.
 
 SCORE ET REVUE DES RISQUES
+NOUVEAU : DEUX MODES ET TRAITEMENT PAR LOTS
+Dans « Choisir les données », choisissez Sans IA ou Assisté local, et le profil Général,
+Banque ou Assurance. L'onglet Listes clients et salariés importe des CSV locaux avec
+en-têtes : prenom;nom;email;matricule ou entreprise;reference_client;iban.
+Des exemples fictifs sont fournis dans le dossier exemples. Les listes restent en mémoire,
+sans envoi ni entraînement. Limites : 5 Mo par CSV, 20 000 informations au total.
+
+« Traiter un lot » démarre sans IA par défaut ; l'assistance locale peut être choisie
+avant analyse. Chargez listes/profil et fichiers, analysez puis vérifiez les propositions.
+Sélectionner ne masque rien : cliquez « Valider la sélection » pour les groupes choisis.
+Les rectangles manuels permettent de traiter les éléments non reconnus.
+Confirmez la vérification de chaque page puis « Valider ce document pour export ».
+L'export ne traite que les documents validés et ne reprend pas leurs noms de fichiers.
+Un fichier modifié depuis l'analyse est refusé. Réanalyse et changement de lot effacent
+les validations en mémoire ; les copies déjà terminées restent sur disque.
+
+Sans IA : aucun OCR ni modèle, même au contrôle final. Images/scans/objets graphiques
+doivent être relus manuellement. Contrôle des pixels et de la structure, sans mesure du
+texte résiduel ; score plafonné à 49/100. Relisez chaque copie avant utilisation.
+Pour démarrer directement dans ce mode : PartageClair.exe --sans-ia.
+
 Le moteur lit désormais aussi les phrases avec un modèle français local. Par exemple,
 « Delmas travaille chez AXA » peut proposer Delmas comme personne et AXA comme organisation,
 sans champ « Nom » ou « Entreprise ». Il propose aussi des lieux et certains noms en

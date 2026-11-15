@@ -68,14 +68,15 @@ class ExportAudit:
     warnings: tuple[str, ...]
     file_stamp: tuple[int, ...] = ()
     labels_ok: bool = True
+    mode: str = 'assisted'
 
     @property
     def passed(self):
-        return (self.structure_ok and self.masks_ok and self.labels_ok and self.ocr_complete
+        return (self.structure_ok and self.masks_ok and self.labels_ok and (self.ocr_complete or self.mode == 'rules')
                 and not self.approved_residuals)
 
 
-def audit_export(source, path, masks, approved_findings, expected_digest, *, cancel=None, progress=None, labels=()):
+def audit_export(source, path, masks, approved_findings, expected_digest, *, cancel=None, progress=None, labels=(), mode='assisted'):
     """Read back only the exported file. Never create new masks or store recognized text."""
     from .detection import canonical, scan
 
@@ -124,18 +125,23 @@ def audit_export(source, path, masks, approved_findings, expected_digest, *, can
                     expected.close()
         finally:
             image.close()
-    with Document(path) as output:
-        index, report = scan(output, cancel=cancel, progress=progress)
-        residuals = 0
-        for finding in approved_findings:
-            check_cancel(cancel)
-            terms = finding.terms or (canonical(finding.value),)
-            if index.find_terms(terms, cancel):
-                residuals += 1
+    if mode not in ('assisted', 'rules'):
+        raise DocumentError('Mode de contrôle inconnu.')
+    residuals, report = 0, None
+    if mode != 'rules':
+        with Document(path) as output:
+            index, report = scan(output, cancel=cancel, progress=progress)
+            for finding in approved_findings:
+                check_cancel(cancel)
+                terms = finding.terms or (canonical(finding.value),)
+                if index.find_terms(terms, cancel):
+                    residuals += 1
     check_cancel(cancel)
     if file_digest(path) != expected_digest:
         raise DocumentError('La copie a changé pendant son contrôle. Aucun résultat validé.')
-    warnings = list(report.warnings)
+    warnings = list(report.warnings) if report else [
+        'Contrôle sans IA : structure et pixels vérifiés ; aucune relecture OCR du texte de la copie. '
+        'Les compteurs de texte résiduel ne sont pas mesurés. Relecture humaine indispensable.']
     if not masks_ok:
         warnings.append('Des pixels de zones validées ne sont pas entièrement noirs.')
     if not labels_ok:
@@ -144,12 +150,12 @@ def audit_export(source, path, masks, approved_findings, expected_digest, *, can
         warnings.append('Du texte validé pour masquage est encore reconnu dans la copie.')
     # A fully blacked/blank page contains no OCR text by design. It still needs visual review,
     # but lack of text alone is not an OCR engine failure on the output.
-    complete = report.ocr_pages == report.pages and not any(
+    complete = report is not None and report.ocr_pages == report.pages and not any(
         'indisponible' in w or 'impossible' in w or 'incomplet' in w for w in report.warnings)
     stat = path.stat()
     return ExportAudit(expected_digest, source.pages, True, bool(masks_ok), complete,
-                       residuals, len(report.findings), tuple(warnings),
-                       (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns), bool(labels_ok))
+                       residuals, len(report.findings) if report else 0, tuple(warnings),
+                       (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns), bool(labels_ok), mode)
 
 
 @dataclass(frozen=True)
@@ -180,7 +186,9 @@ def preparation_score(report, masks, *, criteria_reviewed=False, copy_reviewed=F
     indirect_left = len(remaining) - direct_left
     from .detection_options import ALL_CATEGORIES
     full_scope = set(report.categories) == set(ALL_CATEGORIES)
-    ocr_complete = report.pages > 0 and report.ocr_pages == report.pages and not report.warnings
+    strict = report.mode == 'rules'
+    ocr_complete = (report.pages > 0 and not report.warnings and
+                    (report.text_pages == report.pages if strict else report.ocr_pages == report.pages))
     complete = ocr_complete and full_scope
 
     def points(findings, maximum):
@@ -203,6 +211,10 @@ def preparation_score(report, masks, *, criteria_reviewed=False, copy_reviewed=F
     if any(f.kind in INFERENCE for f in remaining):
         flags.append('inference')
     blockers, cap = [], 95
+    if strict:
+        blockers.append('Mode sans IA : texte natif et règles uniquement ; pas de reconnaissance contextuelle '
+                        'ni de relecture OCR de la copie. Score plafonné à 49, revue visuelle nécessaire.')
+        cap = min(cap, 49)
     if not full_scope:
         blockers.append('Catégories désactivées : analyse partielle, même si toutes les suggestions sont masquées.')
         cap = min(cap, 49)
@@ -249,6 +261,9 @@ def anonymous_summary(score, audit=None):
     export_check = asdict(audit) if audit else None
     if export_check:
         export_check.pop('file_stamp')
+        if audit.mode == 'rules':
+            export_check['approved_residuals'] = None
+            export_check['residual_groups'] = None
     return {'schema': 'partage-clair.preparation.v1', 'score_kind': 'preparation_not_probability',
             'score': score.value, 'maximum_tool': 95, 'cnil_certification': False,
             'components': [{'control': name, 'points': value, 'maximum': maximum}

@@ -44,6 +44,7 @@ class DocumentWorker:
         document = None
         detection_index = None
         manual_findings = set()
+        analysis_mode = 'assisted'
         last_export = None
         cache = OrderedDict()
 
@@ -86,6 +87,7 @@ class DocumentWorker:
                         detection_index = None
                         manual_findings.clear()
                         last_export = None
+                        analysis_mode = 'assisted'
                         cache[(0, 90)] = image
                         info = DocumentInfo(Path(args['path']).name, document.kind,
                                             document.pages, tuple(document.sizes))
@@ -101,6 +103,7 @@ class DocumentWorker:
                         # before this job starts cannot be lost here.
                         groups = args.pop('groups', ())
                         choices = args.pop('choices', {})
+                        export_mode = args.pop('mode', analysis_mode)
                         if groups:
                             if detection_index is None:
                                 raise ValueError('Analyse requise pour retrouver les noms validés.')
@@ -115,14 +118,15 @@ class DocumentWorker:
                         from .assurance import file_digest
                         last_export = (result, tuple(args['boxes']),
                                        tuple(detection_index.findings[key] for key in groups),
-                                       file_digest(result), labels)
+                                       file_digest(result), labels, export_mode)
                     elif operation == 'audit_export':
                         from .assurance import audit_export
                         if document is None or last_export is None:
                             raise ValueError('Exportez d’abord une copie du document.')
-                        path, masks, approved_findings, digest, labels = last_export
+                        path, masks, approved_findings, digest, labels, mode = last_export
+                        mode = args.get('mode', analysis_mode)
                         result = audit_export(document, path, masks, approved_findings, digest,
-                            labels=labels, cancel=self.cancel, progress=lambda done, total: self.results.put(
+                            labels=labels, mode=mode, cancel=self.cancel, progress=lambda done, total: self.results.put(
                                 (request, operation, 'progress', (done, total))))
                     elif operation == 'scan':
                         from .detection import scan
@@ -146,6 +150,10 @@ class DocumentWorker:
                                     visible.setdefault(key, index.findings[key])
                             result = replace(result, findings=tuple(index.findings[k] for k in visible))
                         detection_index = index
+                        analysis_mode = result.mode
+                    elif operation == 'import_references':
+                        from .references import load_csv
+                        result = args['source'], load_csv(args['path'], args['source'], self.cancel)
                     elif operation in ('find_name', 'find_term'):
                         if detection_index is None:
                             raise ValueError('Lancez d’abord une analyse complète du document.')

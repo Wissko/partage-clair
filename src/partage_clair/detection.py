@@ -116,6 +116,10 @@ class ScanReport:
     categories: tuple[str, ...] = ALL_CATEGORIES
     ner_pages: int = 0
     ner_requested: bool = False
+    mode: str = 'assisted'
+    profile: str = 'general'
+    text_pages: int = 0
+    manual_pages: tuple[int, ...] = ()
 
 
 def identifier(kind, value):
@@ -213,6 +217,7 @@ class DetectionIndex:
     def suggest(self, cancel=None, *, options=None, entities=()):
         from .business import business_hits, is_business_field
         from .context import context_hits, explanation
+        from .profiles import profile_hits
         options = options or DetectionOptions()
         enabled = set(options.categories)
         names = {}
@@ -278,6 +283,16 @@ class DetectionIndex:
                 entry[1].extend(layer.zones(start, end))
                 if propagate:
                     propagated.add(key)
+            for kind, start, end in profile_hits(layer.text, options.profile):
+                if category_for(kind) not in enabled:
+                    continue
+                value = layer.text[start:end].strip()
+                if kind == 'Nom':
+                    names.setdefault(canonical(value), (value, 'Règle du profil métier : à vérifier.'))
+                else:
+                    key = kind, canonical(value)
+                    groups.setdefault(key, [value, []])[1].extend(layer.zones(start, end))
+                    propagated.add(key)
             if len(groups) > MAX_FINDINGS:
                 raise DocumentError('Trop de suggestions. Analyse arrêtée sans validation automatique.')
             if 'names' not in enabled:
@@ -331,6 +346,14 @@ class DetectionIndex:
                 # A missing expression is not a scan failure or evidence of absence.
                 if self.find_terms((term,), cancel):
                     self.add_term(term, cancel=cancel)
+        if options.references:
+            from .references import reference_findings
+            for finding in reference_findings(self, options.references, enabled, cancel):
+                previous = self.findings.get(finding.id)
+                if previous:
+                    from dataclasses import replace
+                    finding = replace(finding, zones=merge_zones((*previous.zones, *finding.zones)))
+                self.findings[finding.id] = finding
         if len(self.findings) > MAX_FINDINGS:
             raise DocumentError('Trop de suggestions. Analyse arrêtée sans validation automatique.')
         return tuple(sorted((f for f in self.findings.values() if category_for(f.kind) in enabled),
@@ -347,7 +370,11 @@ class DetectionIndex:
 
 def scan(document, *, use_ocr=True, progress=None, cancel=None, options=None, use_ner=True):
     options = options or DetectionOptions()
+    strict = options.mode == 'rules'
+    if strict:
+        use_ocr = use_ner = False
     layers, warnings, ocr_pages = [], [], 0
+    text_pages, manual_pages = set(), set()
     engine = None
     if use_ocr:
         try:
@@ -365,8 +392,16 @@ def scan(document, *, use_ocr=True, progress=None, cancel=None, options=None, us
                 layer = document.text_layer(page)
                 layers.append(layer)
                 total_chars += len(layer.text)
+                if layer.text.strip():
+                    text_pages.add(page + 1)
+                if strict and (not layer.text.strip() or document.has_visual_objects(page)
+                               or any(c.isalpha() and b is None for c, b in zip(layer.text, layer.boxes))):
+                    manual_pages.add(page + 1)
             except Exception:
                 warnings.append(f'Page {page + 1} : extraction du texte PDF impossible.')
+                manual_pages.add(page + 1)
+        elif strict:
+            manual_pages.add(page + 1)
         if engine:
             image = document.render(page, 150)
             try:
@@ -385,7 +420,7 @@ def scan(document, *, use_ocr=True, progress=None, cancel=None, options=None, us
     check_cancel(cancel)
     index = DetectionIndex(layers)
     entities, ner_pages = [], set()
-    ner_requested = bool({'names', 'companies', 'addresses'} & set(options.categories))
+    ner_requested = not strict and bool({'names', 'companies', 'addresses'} & set(options.categories))
     if progress:
         progress(document.pages, document.pages)
     if ner_requested:
@@ -409,8 +444,12 @@ def scan(document, *, use_ocr=True, progress=None, cancel=None, options=None, us
                     warnings.append(f'Page {layer.page} : reconnaissance du contexte incomplète.')
     findings = index.suggest(cancel, options=options, entities=entities)
     warnings.extend(index.warnings)
+    if strict and manual_pages:
+        warnings.append('Sans IA : pages avec images, éléments graphiques ou texte inexploitable à vérifier '
+                        'manuellement : ' + ', '.join(map(str, sorted(manual_pages))) + '.')
     if progress:
         progress(document.pages, document.pages)
     report = ScanReport(findings, tuple(dict.fromkeys(warnings)), document.pages, ocr_pages,
-                        options.categories, len(ner_pages), ner_requested)
+                        options.categories, len(ner_pages), ner_requested, options.mode, options.profile,
+                        len(text_pages), tuple(sorted(manual_pages)))
     return index, report

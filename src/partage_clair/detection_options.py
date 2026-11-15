@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 
 from .core import DocumentError
+from .profiles import PROFILES
+from .references import MAX_ENTRIES, ReferenceEntry
 
 CATEGORIES = (
     ('names', 'Noms de personnes'),
@@ -37,8 +39,16 @@ def category_for(kind):
 class DetectionOptions:
     categories: tuple[str, ...] = ALL_CATEGORIES
     terms: tuple[str, ...] = ()
+    mode: str = 'assisted'
+    profile: str = 'general'
+    references: tuple[ReferenceEntry, ...] = ()
 
     def __post_init__(self):
+        if self.mode not in ('assisted', 'rules') or self.profile not in PROFILES:
+            raise DocumentError('Mode ou profil de détection inconnu.')
+        if len(self.references) > MAX_ENTRIES or any(not isinstance(e, ReferenceEntry) for e in self.references):
+            raise DocumentError('Listes invalides ou plus de 20 000 informations importées.')
+        object.__setattr__(self, 'references', tuple(dict.fromkeys(self.references)))
         if not set(self.categories) <= set(ALL_CATEGORIES):
             raise DocumentError('Catégorie de détection inconnue.')
         if not self.categories:

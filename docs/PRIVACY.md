@@ -39,6 +39,23 @@ JSON de masques : ce fichier décrit les positions, pas le contenu du document.
 
 ## Analyse locale avant masquage
 
+Depuis 0.8, le mode sans IA court-circuite les chemins OCR et NER, y compris lors du
+contrôle de la copie rasterisée. Il n'importe pas les moteurs dans un interpréteur neuf.
+Le contrôle repose sur la structure, l'empreinte et les pixels ; les résiduels textuels
+ne sont pas mesurés. Ce manque de relecture automatique maintient un plafond de 49 au score.
+Les pages avec images, objets non textuels, texte absent ou géométrie incomplète sont
+signalées pour vérification manuelle. Le mode assisté local reste un choix distinct.
+
+Les listes CSV sont lues après sélection explicite, bornées, normalisées et conservées
+en mémoire. L'application ne sauvegarde ni copie de liste, ni annuaire, ni modèle entraîné
+sur ces valeurs. Les états et chemins du lot restent également en mémoire, sans base
+de suivi persistante. Les seules sorties sont les copies demandées ; leurs noms sont
+génériques. Les erreurs du lot n'enregistrent pas le contenu des documents dans un journal.
+La validation reste attachée à la géométrie analysée et à l'empreinte de l'instantané lu.
+L'ouverture pour aperçu et l'export vérifient cette empreinte avant de réutiliser les zones.
+Une modification de fichier refuse ses anciennes validations. Les erreurs et annulations
+ne déclenchent pas d'export des documents non validés.
+
 Depuis la version 0.7, le modèle français NERmemberta propose aussi personnes,
 organisations et lieux à partir de phrases, sans dépendre d'un libellé de champ. Le
 modèle ONNX, sa configuration et son tokenizer sont installés explicitement puis vérifiés

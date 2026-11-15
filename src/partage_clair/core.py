@@ -1,5 +1,6 @@
 """Rebuild from rendered pixels; never copy source PDF objects into an export."""
 
+import hashlib
 import math
 import os
 import tempfile
@@ -150,6 +151,7 @@ class Document:
                 data = stream.read(MAX_BYTES + 1)
             if len(data) > MAX_BYTES:
                 raise DocumentError("Fichier trop volumineux (limite : 100 Mo).")
+            self.source_digest = hashlib.sha256(data).hexdigest()
             if self.path.suffix.lower() == ".pdf":
                 # Parse a snapshot, not a path that could change between readers.
                 reader = PdfReader(BytesIO(data))
@@ -279,6 +281,18 @@ class Document:
         if max(pixels) > MAX_PAGE_PIXELS:
             raise DocumentError("Page trop grande à cette résolution. Réduisez les ppp.")
         return sum(pixels)
+
+    @serialized_pdfium
+    def has_visual_objects(self, index):
+        """Flag non-text objects, including nested forms, without image recognition."""
+        self._require_open()
+        if self.kind != 'pdf':
+            return True
+        page = self.pdf[index]
+        try:
+            return any(obj.type != pdfium.raw.FPDF_PAGEOBJ_TEXT for obj in page.get_objects())
+        finally:
+            page.close()
 
     def export(self, target: str | Path, boxes: list[Box], dpi: int = 150, *,
                progress: Callable[[int, int], None] | None = None, cancel=None, labels=()) -> Path:

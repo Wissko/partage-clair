@@ -144,6 +144,10 @@ class AssuranceWindow:
                 f'{audit.residual_groups} proposition(s) restante(s) dans la copie.\n'
                 f'SHA-256 de la copie : {audit.sha256}\n' + ' '.join(audit.warnings) +
                 ('\nRelecture déclarée pour cette copie.' if app.copy_snapshot == app.review_signature() else ''))
+            if audit.mode == 'rules':
+                self.audit_status.set(f'Contrôle sans IA : {"structure et pixels conformes" if audit.passed else "anomalie"}. '
+                                      'Le texte résiduel n’est pas mesuré (pas d’OCR).\n'
+                                      + ' '.join(audit.warnings))
         else:
             self.audit_status.set('Copie actuelle non contrôlée. Aucune preuve technique attribuée au score.')
 

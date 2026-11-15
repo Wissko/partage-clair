@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0 — 2026-11-15
+
+- Mode sans IA sur tout le parcours : texte PDF, règles et listes ; aucun OCR/NER, même au contrôle d'export.
+- Import CSV de clients et salariés, borné et en mémoire ; recherche multi-motifs sans modèle appris.
+- Profils banque et assurance ajoutant des règles métier, disponibles dans les deux modes.
+- Lots jusqu'à 100 fichiers avec choix du mode, prévisualisation, rectangles et validations séparées.
+- Vérification de chaque page et validation explicite de chaque document avant l'export de ses copies.
+- Liaison des validations à l'empreinte source ; refus des fichiers modifiés, noms de sortie génériques.
+- Annulation, erreurs isolées, conservation des copies terminées et refus d'écrasement.
+- Contrôle technique sans IA distinct de la relecture OCR ; score plafonné à 49 et résiduels non mesurés.
+- Démarrage direct par --sans-ia, exemples CSV fictifs et auto-test du portable incluant import et lot validé.
+
 ## 0.7.0 — 2026-11-15
 
 - Reconnaissance du contexte français avec NERmemberta (CATIE), ONNX sur CPU, sans libellé requis.

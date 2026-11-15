@@ -17,7 +17,7 @@ PATTERNS = (
     ('Horaire', r'\b(?:[01]?\d|2[0-3])\s*[h:]\s*[0-5]\d\b'),
     ('Âge', r'\b\d{1,3}\s+ans\b|\bcentenaire[s]?\b'),
     ('Montant', r'(?<!\w)\d[\d .\u202f,]{0,18}\s*(?:€|euros?\b|EUR\b|dollars?\b|USD\b)'),
-    ('Lieu', r'\b\d{5}\s+[A-ZÀ-ÖØ-Þ][^\n\r;|]{1,65}'),
+    ('Lieu', r'(?<![\w-])\d{5}[ \t]+[A-ZÀ-ÖØ-Þ][^\n\r;|]{1,65}'),
     ('Lieu', r'\b(?:ville|commune|domicile|r[ée]sidence|lieu(?: de naissance)?|n[ée]e? [àa])\s*[:=]\s*[^\n\r;|]{2,90}'),
     ('Lieu', r'\b(?:habite|r[ée]side|domicili[ée]e? [àa]|n[ée]e? [àa])\s+[^\n\r;|]{2,90}'),
     ('Lieu', r'\b(?:Paris|Marseille|Lyon|Toulouse|Nice|Nantes|Montpellier|Strasbourg|Bordeaux|Lille|'

@@ -96,6 +96,9 @@ class ReviewWindow:
                    else 'Contexte non demandé pour ces catégories.')
         self.coverage.set(f'OCR : {report.ocr_pages}/{report.pages} pages. '
                           f'{context} {scope} {warning} La détection peut manquer des informations : relisez la copie.')
+        if report.mode == 'rules':
+            self.coverage.set(f'Sans IA : texte PDF sur {report.text_pages}/{report.pages} pages. '
+                              f'OCR et modèle désactivés. {scope} {warning} Relisez toutes les pages.')
 
     def chosen(self):
         selection = self.tree.selection()

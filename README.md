@@ -6,13 +6,13 @@ Partage Clair permet de masquer un nom, une adresse ou une référence sur un do
 et de créer une copie sans reprendre ses métadonnées intégrées. Le projet est libre,
 sans compte, sans abonnement, sans API et sans télémétrie.
 
-**Version 0.7 : préversion pour des fichiers de confiance.** Aucun audit de
+**Version 0.8 : préversion pour des fichiers de confiance.** Aucun audit de
 sécurité indépendant n'a encore été réalisé. La détection locale propose des informations
 à vérifier ; elle n'est pas exhaustive. Le programme n'est pas un antivirus ni une sandbox.
 
 ## Démarrer sur Windows sans Python
 
-Téléchargez le ZIP `PartageClair-0.7.0-windows-x64.zip` depuis les
+Téléchargez le ZIP `PartageClair-0.8.0-windows-x64.zip` depuis les
 [versions du projet](https://github.com/Wissko/partage-clair/releases), extrayez-le,
 puis lancez `PartageClair.exe`. Le ZIP contient aussi les instructions et les licences
 des composants embarqués. Il est destiné à Windows 64 bits. Le binaire n'est pas signé
@@ -21,6 +21,8 @@ numériquement ; ne désactivez pas les protections de votre ordinateur pour le 
 Gardez le dossier **models** à côté de l'exécutable : il contient le modèle français de
 reconnaissance du contexte. Le ZIP est plus volumineux (poids du modèle : 443 Mo).
 Ces poids ne sont pas décompressés à chaque lancement ; tout est prêt après extraction.
+Le mode **Sans IA** n'utilise ni ces poids ni l'OCR, même au contrôle de la copie.
+Les fichiers `exemples/liste-clients.csv` et `exemples/liste-salaries.csv` sont entièrement fictifs.
 
 ## Installation depuis les sources
 
@@ -53,6 +55,55 @@ macOS / Linux :
 L'installation télécharge les dépendances et le modèle public, dont les empreintes sont
 vérifiées. **Le traitement des documents fonctionne
 ensuite sans réseau.** macOS et Linux utilisent actuellement cette installation depuis les sources.
+
+Pour une installation **sans dépendances IA**, installez seulement `pip install -e .`,
+puis lancez `partage-clair-gui --sans-ia`. Aucun modèle ni OCR n'est nécessaire dans ce mode.
+Sur Windows, le portable accepte également `PartageClair.exe --sans-ia`.
+
+## Deux modes, listes d'entreprise et lots
+
+Dans **Choisir les données…**, sélectionnez :
+
+- **Sans IA — règles et listes** : extraction du texte PDF et recherches explicites. Aucun
+  OCR ni modèle n'est chargé ou utilisé par ce parcours. Les pages scannées, images,
+  objets graphiques et caractères sans position exploitable sont signalés pour revue manuelle.
+- **Assisté local — OCR et modèle** : les fonctions de reconnaissance locales de la version 0.7
+  restent disponibles. Les listes et profils fonctionnent également avec cette assistance.
+
+Choisissez le profil **Général**, **Banque** ou **Assurance**. Ces profils ajoutent des règles
+métier, sans classifier automatiquement le document : prêts, soldes, conseillers pour
+Banque ; sociétaires, assurés, adresse du risque et capital assuré pour Assurance.
+Toutes les catégories restent cochées par défaut et chaque proposition reste à valider.
+
+L'onglet **Listes clients et salariés** importe des CSV locaux avec en-têtes. Exemples :
+`prenom;nom;email;matricule` ou `entreprise;reference_client;iban`.
+Les listes acceptent UTF-8 avec/sans BOM, UTF-16 avec BOM et Windows-1252, ainsi que
+les séparateurs virgule, point-virgule et tabulation. Limites : 5 Mo par CSV et
+20 000 informations importées au total. Les colonnes reconnues sont utilisées ; consultez
+[les exemples](examples/liste-salaries.csv) et [le guide des lots](docs/BATCH.md).
+
+Un nom complet ou un nom de famille de la liste fait proposer un groupe ; un prénom commun
+seul ne fait pas proposer tous ses homonymes. Ses composants sont ensuite recherchés
+partout. Les entreprises sont recherchées comme expressions entières. Les listes restent
+en mémoire pour la session, sans copie du CSV ni entraînement d'un modèle sur vos données.
+
+**Traiter un lot…** ouvre un parcours dédié, par défaut sans IA :
+
+1. Configurez les listes et le profil, puis choisissez jusqu'à 100 fichiers (50 pages et 100 Mo maximum par fichier).
+2. Analysez. Sélectionner une proposition ne la masque pas ; utilisez **Valider la sélection**.
+   Ajoutez des rectangles manuels sur les zones oubliées et les scans non lus.
+3. Confirmez la vérification de chaque page, puis **Valider ce document pour export**.
+4. **Exporter les documents validés…** ignore les autres fichiers. Relisez chaque copie finale.
+
+Les fichiers source sont liés à leur instantané par empreinte : une modification interdit
+l'export avec les anciennes zones. Les changements de masques invalident la validation du
+document. Les copies portent des noms génériques, sans reprendre le nom du fichier source.
+Les lots et validations restent en mémoire ; une réanalyse les réinitialise et les originaux
+ne sont jamais écrasés. Les erreurs d'un document ne valident pas les autres documents.
+
+**Sans IA, le score est plafonné à 49/100.** Le contrôle vérifie la structure et les pixels
+des masques, mais ne relit pas le texte des pixels par OCR ; les compteurs de texte résiduel
+sont non mesurés (`null` dans le bilan). Cela n'atteste pas l'anonymat du document.
 
 1. Ouvrez un PDF ou une image : **l’analyse locale démarre automatiquement** après son ouverture.
 2. Attendez les propositions, puis examinez-les dans la fenêtre de vérification.

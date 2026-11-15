@@ -89,6 +89,8 @@ def main():
         archive.write(exe, 'PartageClair.exe')
         archive.write(ROOT / 'LICENSE', 'LICENSE')
         archive.write(ROOT / 'packaging' / 'LISEZ-MOI.txt', 'LISEZ-MOI.txt')
+        for name in ('liste-clients.csv', 'liste-salaries.csv'):
+            archive.write(ROOT / 'examples' / name, 'exemples/' + name)
         for name in (*MODEL_FILES, 'MODEL_LICENSE.txt'):
             archive.write(portable_models / name, 'models/ner/' + name)
         for entry in notices.rglob('*'):

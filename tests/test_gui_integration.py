@@ -4,6 +4,7 @@ import gc
 import os
 import time
 import tkinter as tk
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -424,4 +425,131 @@ def test_context_recognition_without_labels_is_automatic_but_requires_review(tmp
         assert {b.page for b in app.all_boxes()} == {1, 2}
         assert not errors
     finally:
+        cleanup(root, app)
+
+
+def test_strict_mode_imports_lists_and_audits_without_models(tmp_path, monkeypatch, tk_root):
+    from partage_clair.detection_ui import MODES
+    from tests.test_detection import make_pdf
+
+    def forbidden(*_a, **_k):
+        pytest.fail('No AI constructor may run in strict mode')
+    monkeypatch.setattr('partage_clair.ocr.LocalOcr.__init__', forbidden)
+    monkeypatch.setattr('partage_clair.ner.LocalNer.__init__', forbidden)
+    source = make_pdf(tmp_path / 'source.pdf', ['nadia benali signe.'])
+    catalog = tmp_path / 'employees.csv'
+    catalog.write_text('prenom;nom\nNadia;Benali\n', encoding='utf-8-sig')
+    errors = []
+    monkeypatch.setattr('partage_clair.gui.messagebox.showerror', lambda *a: errors.append(a))
+    root = tk_root
+    app = App(root)
+    try:
+        app.show_detection_options()
+        picker = app.detection_window
+        picker.mode.set(next(label for label, mode in MODES.items() if mode == 'rules'))
+        picker.profile.set('Banque')
+        app.import_references(catalog, 'employees')
+        wait(root, lambda: not app.busy)
+        assert len(picker.entries) == 1
+        picker.apply()
+        app.load(source)
+        wait(root, lambda: app.report is not None and not app.busy)
+        assert app.report.mode == 'rules' and app.report.profile == 'bank'
+        assert not app.approved and not app.all_boxes()
+        finding = next(f for f in app.report.findings if f.value == 'Nadia Benali')
+        app.approve_finding(finding)
+        output = tmp_path / 'masked.pdf'
+        monkeypatch.setattr('partage_clair.gui.filedialog.asksaveasfilename', lambda **_: str(output))
+        monkeypatch.setattr('partage_clair.gui.messagebox.askokcancel', lambda *_: True)
+        app.export()
+        wait(root, lambda: not app.busy)
+        app.audit_copy()
+        wait(root, lambda: not app.busy)
+        assert app.current_audit().mode == 'rules' and app.current_audit().passed
+        assert app.get_preparation_score().value <= 49
+        assert not errors
+    finally:
+        cleanup(root, app)
+
+
+def test_batch_gui_requires_masks_pages_and_document_validation_before_export(tmp_path, monkeypatch, tk_root):
+    from partage_clair.references import ReferenceEntry
+    from tests.test_detection import make_pdf
+
+    def forbidden(*_a, **_k):
+        pytest.fail('The batch must not run AI')
+    monkeypatch.setattr('partage_clair.ocr.LocalOcr.__init__', forbidden)
+    monkeypatch.setattr('partage_clair.ner.LocalNer.__init__', forbidden)
+    source = make_pdf(tmp_path / 'names.pdf', ['nadia benali signe.', 'BENALI attend.'])
+    second = make_pdf(tmp_path / 'other.pdf', ['orion fictif attend.'])
+    root = tk_root
+    app = App(root)
+    batch = None
+    try:
+        app.show_batch()
+        batch = app.batch_window
+        assert batch.detection_options.mode == 'rules'
+        batch.set_detection_options(replace(batch.detection_options,
+            profile='insurance', references=(ReferenceEntry('Nom', 'Nadia Benali', 'employees'),)))
+        batch.files = (source, second)
+        batch.analyze()
+        wait(root, lambda: not batch.busy)
+        assert len(batch.jobs) == 2 and not any(j.ready or j.approved for j in batch.jobs.values())
+        assert str(batch.export_button['state']) == 'disabled'
+        batch.documents.selection_set('1')
+        batch.select_document()
+        wait(root, lambda: not batch.busy and batch.preview is not None)
+        finding = next(f for f in batch.job().report.findings if f.value == 'Nadia Benali')
+        batch.findings.selection_set(finding.id)
+        root.update()
+        assert not batch.job().approved
+        batch.candidates(True)
+        wait(root, lambda: not batch.busy)
+        assert batch.job().approved == frozenset({finding.id}) and not batch.job().ready
+        assert str(batch.approve_button['state']) == 'disabled'
+        batch.action('review_page', page=1)
+        wait(root, lambda: not batch.busy)
+        batch.move(1)
+        wait(root, lambda: not batch.busy)
+        batch.action('review_page', page=2)
+        wait(root, lambda: not batch.busy)
+        assert str(batch.approve_button['state']) == 'normal'
+        batch.action('approve_document')
+        wait(root, lambda: not batch.busy)
+        assert batch.job().ready and not batch.jobs['2'].ready
+        batch.begin('export', folder=tmp_path)
+        wait(root, lambda: not batch.busy)
+        assert batch.jobs['1'].output and batch.jobs['2'].output is None
+        assert not PdfReader(batch.jobs['1'].output).pages[0].extract_text()
+    finally:
+        if batch:
+            batch.worker.stop()
+            batch.worker.thread.join(timeout=10)
+            if batch.preview:
+                batch.preview.close()
+        cleanup(root, app)
+
+
+def test_batch_can_opt_into_local_assistance_while_preserving_review(tmp_path, tk_root):
+    from tests.test_detection import make_pdf
+    root = tk_root
+    app = App(root)
+    batch = None
+    try:
+        app.show_batch()
+        batch = app.batch_window
+        batch.set_detection_options(replace(batch.detection_options, mode='assisted'))
+        batch.files = (make_pdf(tmp_path / 'source.pdf', ['Nom : Alice Dupont']),)
+        batch.analyze()
+        wait(root, lambda: not batch.busy)
+        job = batch.jobs['1']
+        assert job.report.mode == 'assisted' and job.report.ocr_pages == job.report.ner_pages == 1
+        assert any(f.kind == 'Nom' for f in job.report.findings)
+        assert not job.approved and not job.ready and job.output is None
+    finally:
+        if batch:
+            batch.worker.stop()
+            batch.worker.thread.join(timeout=10)
+            if batch.preview:
+                batch.preview.close()
         cleanup(root, app)
