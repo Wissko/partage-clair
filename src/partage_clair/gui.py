@@ -77,7 +77,7 @@ class App:
         ttk.Label(edits, text='Glissez pour masquer. Cliquez un masque pour le sélectionner.').pack(side='left', padx=10)
         detection_bar = ttk.Frame(frame)
         detection_bar.pack(fill='x', pady=(0, 8))
-        self.detect_button = ttk.Button(detection_bar, text='Détecter les informations sensibles',
+        self.detect_button = ttk.Button(detection_bar, text='Relancer la détection',
                                         command=self.detect)
         self.detect_button.pack(side='left')
         self.review_button = ttk.Button(detection_bar, text='Vérifier les suggestions…', command=self.show_review)
@@ -200,7 +200,7 @@ class App:
         return [*self.boxes, *(b for finding in self.approved.values() for b in finding.zones)]
 
     def detect(self):
-        if self.doc and not self.busy:
+        if self.doc and not self.busy and not self.closing:
             self.worker.cancel.clear()
             self.status.set('Analyse locale de toutes les pages : texte et OCR…')
             self.begin('scan', use_ocr=True)
@@ -392,6 +392,8 @@ class App:
                     self.canvas.yview_moveto(0)
                     self.draw()
                     self.refresh_status()
+                    if operation == 'open':
+                        self.detect()
                 elif operation == 'export':
                     self.last_output, self.exported = payload, self.mask_state()
                     self.audit, self.audit_snapshot, self.copy_snapshot = None, None, None

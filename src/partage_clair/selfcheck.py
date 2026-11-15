@@ -79,11 +79,36 @@ def run(report):
             result['export_audit'] = True
             result['replacement_export'] = True
             # Validate the bundled Tcl/Tk resources as well as the decoder DLLs.
+            import time
             import tkinter as tk
+
+            from .gui import App
             root = tk.Tk()
             root.withdraw()
-            root.update_idletasks()
-            root.destroy()
+            errors = []
+            root.report_callback_exception = lambda *args: errors.append(args)
+            app = App(root, initial_path=folder / 'ocr-source.png')
+            app.show_review = lambda: None  # Keep the portable smoke check invisible.
+            try:
+                with patch('partage_clair.gui.messagebox.showerror', side_effect=lambda *args: errors.append(args)), \
+                     patch('requests.sessions.Session.request', side_effect=RuntimeError('Network forbidden')):
+                    deadline = time.monotonic() + 25
+                    while (app.report is None or app.busy) and not errors and time.monotonic() < deadline:
+                        root.update()
+                        time.sleep(.01)
+                    assert not errors and app.report is not None and not app.busy
+                    assert app.report.ocr_pages == 1 and not app.report.warnings
+                    assert app.report.findings and not app.all_boxes() and not app.approved and not app.choices
+                    result['automatic_detection'] = True
+            finally:
+                app.worker.stop()
+                app.worker.thread.join(timeout=10)
+                assert not app.worker.thread.is_alive()
+                for callback in root.tk.call('after', 'info'):
+                    root.after_cancel(callback)
+                if app.preview:
+                    app.preview.close()
+                root.destroy()
             result['success'] = True
     except Exception as error:
         result['error'] = f'{type(error).__name__}: {error}'

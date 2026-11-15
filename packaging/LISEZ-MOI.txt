@@ -1,9 +1,9 @@
-PARTAGE CLAIR 0.5 — WINDOWS 64 BITS
+PARTAGE CLAIR 0.5.1 — WINDOWS 64 BITS
 
 1. Extrayez le ZIP dans un dossier de votre choix.
 2. Lancez PartageClair.exe. Python n'est pas nécessaire.
 3. Ouvrez un PDF ou une image. Parcourez toutes les pages.
-4. Utilisez « Détecter les informations sensibles », puis vérifiez les propositions.
+4. L'analyse locale démarre automatiquement après l'ouverture. Vérifiez ses propositions.
    Aucune suggestion n'est masquée avant votre validation. Un nom validé couvre toutes
    ses occurrences reconnues : nom complet, prénom et nom séparément, sur toutes les pages.
    Les variantes de casse et d'accents sont regroupées, avec des limites de mots entiers.
@@ -11,6 +11,10 @@ PARTAGE CLAIR 0.5 — WINDOWS 64 BITS
    Retirer une validation de nom retire ses masques sur toutes les pages ensemble.
    Tracez aussi des rectangles manuels sur les informations non repérées.
 5. Exportez vers un nouveau fichier puis ouvrez et vérifiez la copie.
+
+L'analyse automatique peut être annulée. « Relancer la détection » permet de recommencer
+manuellement. Le changement de page et le zoom ne déclenchent pas de nouvelle analyse.
+Un nouveau document efface les validations précédentes : elles ne sont jamais transférées.
 
 SCORE ET REVUE DES RISQUES
 Dans les suggestions, vous pouvez choisir : masquer entièrement, réduire la précision

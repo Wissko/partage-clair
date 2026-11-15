@@ -39,6 +39,11 @@ JSON de masques : ce fichier décrit les positions, pas le contenu du document.
 
 ## Analyse locale avant masquage
 
+Depuis la version 0.5.1, ouvrir un document dans l'interface déclenche l'analyse locale
+automatiquement, après ouverture réussie. Cela inclut un fichier fourni au lancement de
+l'application. Cette analyse peut être annulée et ne valide jamais de zone ni de méthode.
+Une ouverture échouée et la navigation ne déclenchent pas de réanalyse du fichier courant.
+
 La version 0.3 propose une détection locale soumise à validation. L'index texte/coordonnées
 est en mémoire. L'OCR utilise des modèles embarqués et des chemins explicites, sans
 téléchargement à l'exécution ; la télémétrie ONNX Runtime est désactivée. Les propositions

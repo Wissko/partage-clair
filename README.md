@@ -12,7 +12,7 @@ sécurité indépendant n'a encore été réalisé. La détection locale propose
 
 ## Démarrer sur Windows sans Python
 
-Téléchargez le ZIP `PartageClair-0.5.0-windows-x64.zip` depuis les
+Téléchargez le ZIP `PartageClair-0.5.1-windows-x64.zip` depuis les
 [versions du projet](https://github.com/Wissko/partage-clair/releases), extrayez-le,
 puis lancez `PartageClair.exe`. Le ZIP contient aussi les instructions et les licences
 des composants embarqués. Il est destiné à Windows 64 bits. Le binaire n'est pas signé
@@ -47,13 +47,18 @@ macOS / Linux :
 L'installation télécharge les dépendances. **Le traitement des documents fonctionne
 ensuite sans réseau.** macOS et Linux utilisent actuellement cette installation depuis les sources.
 
-1. Ouvrez un PDF ou une image.
-2. Lancez **Détecter les informations sensibles**, puis examinez les suggestions.
+1. Ouvrez un PDF ou une image : **l’analyse locale démarre automatiquement** après son ouverture.
+2. Attendez les propositions, puis examinez-les dans la fenêtre de vérification.
    Sélectionnez un groupe pour voir ses zones en pointillés, puis validez-le explicitement.
    Sans validation, aucune suggestion n'est masquée. Parcourez **toutes** les pages et
    complétez avec des rectangles manuels.
 3. Exportez vers un nouveau fichier. L'original et les fichiers existants ne sont jamais remplacés.
 4. Ouvrez la copie exportée et vérifiez chaque page avant de la transmettre.
+
+L'analyse s'effectue en arrière-plan et peut être annulée. **Relancer la détection** permet
+de recommencer manuellement ; changer de page ou de zoom ne relance pas l'analyse. Ouvrir
+un autre document efface les validations précédentes et analyse le nouveau fichier sans
+appliquer de masque ni de remplacement automatiquement.
 
 ### Valider un nom sur tout le document
 

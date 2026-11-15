@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1 — 2026-11-15
+
+- Analyse locale automatique après ouverture réussie d'un document, y compris au lancement avec un fichier.
+- Validation humaine conservée avant tout masque, généralisation ou pseudonyme.
+- Annulation et relance manuelle ; navigation et zoom sans réanalyse automatique.
+- Tests d'ouverture PDF/image, absence de validation transférée, ouverture échouée et annulation sans boucle.
+- Auto-test du portable vérifiant le parcours ouverture → OCR automatique → propositions non validées.
+
 ## 0.5.0 — 2026-11-15
 
 - Choix de méthode avant validation : occultation, généralisation déterministe, pseudonyme.

@@ -110,8 +110,7 @@ def test_detection_needs_validation_and_group_cannot_be_partially_removed(tmp_pa
     try:
         app.load(source)
         wait(root, lambda: app.doc and not app.busy)
-        app.detect()
-        wait(root, lambda: app.report is not None and not app.busy)
+        assert app.report is not None
         assert not app.all_boxes() and not app.approved
         finding = next(f for f in app.report.findings if f.value == 'Alice Dupont')
         app.approve_finding(finding)
@@ -141,11 +140,10 @@ def test_score_review_and_audit_become_stale_after_edits_or_new_search(tmp_path,
     root.report_callback_exception = lambda *args: errors.append(args)
     app = App(root)
     try:
+        assert app.get_preparation_score().value is None
         app.load(source)
         wait(root, lambda: app.doc and not app.busy)
-        assert app.get_preparation_score().value is None
-        app.detect()
-        wait(root, lambda: app.report is not None and not app.busy)
+        assert app.report is not None
         assert not app.all_boxes()
         app.show_assurance()
         panel = app.assurance_window
@@ -196,8 +194,7 @@ def test_generalisation_requires_explicit_validation_and_undo_restores_method(tm
     try:
         app.load(source)
         wait(root, lambda: app.doc and not app.busy)
-        app.detect()
-        wait(root, lambda: app.report is not None and not app.busy)
+        assert app.report is not None
         age = next(f for f in app.report.findings if f.kind == 'Âge')
         app.review.tree.selection_set(age.id)
         root.update()
@@ -225,6 +222,91 @@ def test_generalisation_requires_explicit_validation_and_undo_restores_method(tm
         app.review.tree.selection_set(name.id)
         root.update()
         assert app.review.alias.get() == 'Personne B'
+        assert not errors
+    finally:
+        cleanup(root, app)
+
+
+def test_open_autoscans_once_and_never_carries_approval_to_next_document(tmp_path, monkeypatch, tk_root):
+    from PIL import Image, ImageDraw, ImageFont
+
+    from tests.test_detection import make_pdf
+    source = make_pdf(tmp_path / 'first.pdf', ['Nom : Alice Dupont', 'ALICE et DUPONT signent.'])
+    image = Image.new('RGB', (900, 160), 'white')
+    ImageDraw.Draw(image).text((25, 35), 'Nom : Alice Dupont', fill='black', font=ImageFont.load_default(size=34))
+    second = tmp_path / 'second.png'
+    image.save(second)
+    image.close()
+    errors = []
+    monkeypatch.setattr('partage_clair.gui.messagebox.showerror', lambda *args: errors.append(args))
+    root = tk_root
+    app = App(root, initial_path=source)
+    calls = []
+    original = app.worker.submit
+
+    def submit(operation, **arguments):
+        calls.append(operation)
+        return original(operation, **arguments)
+    app.worker.submit = submit
+    try:
+        wait(root, lambda: app.report is not None and not app.busy)
+        assert calls.count('scan') == 1
+        assert not app.all_boxes() and not app.approved and not app.choices and not app.dirty()
+        finding = next(f for f in app.report.findings if f.value == 'Alice Dupont')
+        assert finding.pages == (1, 2)
+        app.move(1)
+        wait(root, lambda: app.page == 1 and not app.busy)
+        app.set_zoom(2)
+        wait(root, lambda: not app.busy)
+        assert calls.count('scan') == 1, 'Navigation and zoom must not trigger another scan.'
+        app.approve_finding(finding)
+        assert app.approved
+        app.load(second)
+        wait(root, lambda: app.doc.kind == 'image' and app.report is not None and not app.busy)
+        assert calls.count('scan') == 2 and app.report.ocr_pages == 1
+        assert finding.id in {f.id for f in app.report.findings}
+        assert not app.approved and not app.all_boxes() and not app.choices and not app.dirty()
+        old_report = app.report
+        app.load(tmp_path / 'missing.pdf')
+        wait(root, lambda: not app.busy)
+        assert len(errors) == 1 and calls.count('scan') == 2
+        assert app.report is old_report, 'A failed open must not replace or rescan the existing document.'
+    finally:
+        cleanup(root, app)
+
+
+def test_cancel_automatic_scan_does_not_restart_and_manual_retry_is_available(tmp_path, monkeypatch, tk_root):
+    from partage_clair.core import ExportCancelled
+    from partage_clair.detection import scan
+    from tests.test_detection import make_pdf
+    source = make_pdf(tmp_path / 'source.pdf', ['Nom : Alice Dupont'])
+    started = []
+
+    def cancellable(document, **arguments):
+        started.append(True)
+        if len(started) == 1:
+            while not arguments['cancel'].wait(.01):
+                pass
+            raise ExportCancelled('Analyse annulée pour ce test.')
+        arguments['use_ocr'] = False
+        return scan(document, **arguments)
+    monkeypatch.setattr('partage_clair.detection.scan', cancellable)
+    errors = []
+    monkeypatch.setattr('partage_clair.gui.messagebox.showerror', lambda *args: errors.append(args))
+    root = tk_root
+    app = App(root, initial_path=source)
+    try:
+        wait(root, lambda: app.busy == 'scan' and started)
+        assert str(app.cancel_button['state']) == 'normal'
+        app.cancel_export()
+        wait(root, lambda: not app.busy)
+        assert len(started) == 1 and app.report is None and not app.all_boxes()
+        app.move(0)
+        wait(root, lambda: not app.busy)
+        assert len(started) == 1
+        app.detect()
+        wait(root, lambda: app.report is not None and not app.busy)
+        assert len(started) == 2 and not app.approved and not app.choices
         assert not errors
     finally:
         cleanup(root, app)
