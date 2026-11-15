@@ -178,7 +178,10 @@ def preparation_score(report, masks, *, criteria_reviewed=False, copy_reviewed=F
     remaining += retained
     direct_left = sum(f.id not in covered for f in direct)
     indirect_left = len(remaining) - direct_left
-    complete = report.pages > 0 and report.ocr_pages == report.pages and not report.warnings
+    from .detection_options import ALL_CATEGORIES
+    full_scope = set(report.categories) == set(ALL_CATEGORIES)
+    ocr_complete = report.pages > 0 and report.ocr_pages == report.pages and not report.warnings
+    complete = ocr_complete and full_scope
 
     def points(findings, maximum):
         if not findings:
@@ -200,6 +203,9 @@ def preparation_score(report, masks, *, criteria_reviewed=False, copy_reviewed=F
     if any(f.kind in INFERENCE for f in remaining):
         flags.append('inference')
     blockers, cap = [], 95
+    if not full_scope:
+        blockers.append('Catégories désactivées : analyse partielle, même si toutes les suggestions sont masquées.')
+        cap = min(cap, 49)
     by_page = {}
     for finding in remaining:
         if finding.kind not in DIRECT:
@@ -212,7 +218,7 @@ def preparation_score(report, masks, *, criteria_reviewed=False, copy_reviewed=F
     if retained:
         flags = list(dict.fromkeys([*flags, 'correlation']))
         blockers.append('Des généralisations ou pseudonymes sont conservés : leur risque de recoupement n’est pas mesuré.')
-    if not complete:
+    if not ocr_complete:
         blockers.append('Analyse incomplète ou page sans texte reconnu : contrôle manuel indispensable.')
         cap = min(cap, 49)
     if direct_left:

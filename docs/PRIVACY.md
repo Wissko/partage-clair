@@ -39,6 +39,15 @@ JSON de masques : ce fichier décrit les positions, pas le contenu du document.
 
 ## Analyse locale avant masquage
 
+Depuis la version 0.6, toutes les catégories sont sélectionnées par défaut, mais peuvent
+être choisies explicitement. Les expressions confidentielles ajoutées restent en mémoire
+pour la session et ne sont ni écrites dans des préférences, ni incluses dans le bilan JSON.
+Changer de sélection relance l'analyse sans nouvelle validation automatique ; les masques
+déjà validés sont conservés. Le score est plafonné à 49 si des catégories sont désactivées.
+Le contrôle de l'export garde toutes les catégories actives indépendamment de ce filtre.
+Les règles métier proposent des candidats issus de libellés et de mots contextuels ;
+elles ne certifient pas la suppression de tous les secrets d'un document d'entreprise.
+
 Depuis la version 0.5.1, ouvrir un document dans l'interface déclenche l'analyse locale
 automatiquement, après ouverture réussie. Cela inclut un fichier fourni au lancement de
 l'application. Cette analyse peut être annulée et ne valide jamais de zone ni de méthode.

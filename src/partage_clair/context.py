@@ -4,8 +4,10 @@ import ipaddress
 import re
 
 DIRECT = {'Nom', 'E-mail', 'Téléphone', 'IBAN', 'Carte bancaire', 'Adresse',
-          'Date de naissance', 'Identifiant', 'Lien / compte', 'Adresse IP'}
-INFERENCE = {'Contexte sensible', 'Montant', 'Âge', 'Profession / organisme', 'Contexte singulier'}
+          'Date de naissance', 'Identifiant', 'Lien / compte', 'Adresse IP', 'Donnée bancaire',
+          'Entreprise / client', 'Identifiant entreprise', 'Référence métier', 'Texte ajouté'}
+INFERENCE = {'Contexte sensible', 'Montant', 'Âge', 'Profession / organisme', 'Contexte singulier',
+             'Donnée métier'}
 LINKABLE = {'Date précise', 'Horaire', 'Lieu', 'Profession / organisme', 'Identifiant',
             'Lien / compte', 'Adresse IP', 'Coordonnées GPS', 'Contexte singulier'}
 MONTH = (r'janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[ée]cembre')
@@ -61,6 +63,10 @@ def context_hits(text):
 
 
 def explanation(kind):
+    if kind in {'Entreprise / client', 'Identifiant entreprise', 'Référence métier', 'Donnée bancaire'}:
+        return 'Valeur après un libellé métier ; occurrences exactes recherchées partout. À vérifier.'
+    if kind == 'Donnée métier':
+        return 'Passage métier potentiellement confidentiel : vérifier la ligne entière avant validation.'
     if kind in DIRECT:
         return 'Identifiant possible : peut identifier ou relier des documents. À vérifier.'
     if kind == 'Contexte sensible':

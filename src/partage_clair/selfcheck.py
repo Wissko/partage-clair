@@ -42,8 +42,9 @@ def run(report):
 
             from .assurance import audit_export, file_digest
             from .detection import canonical, scan
-            image = Image.new('RGB', (900, 160), 'white')
-            ImageDraw.Draw(image).text((25, 35), 'Nom : Alice Dupont', fill='black',
+            image = Image.new('RGB', (1000, 270), 'white')
+            ImageDraw.Draw(image).multiline_text((25, 30),
+                                      'Nom : Alice Dupont\nClient : Orion Fictif\nPolice : POL-760023', fill='black',
                                       font=ImageFont.load_default(size=34))
             image.save(folder / 'ocr-source.png')
             image.close()
@@ -100,6 +101,25 @@ def run(report):
                     assert app.report.ocr_pages == 1 and not app.report.warnings
                     assert app.report.findings and not app.all_boxes() and not app.approved and not app.choices
                     result['automatic_detection'] = True
+                    from .detection_options import category_for
+                    app.show_detection_options()
+                    picker = app.detection_window
+                    picker.window.withdraw()
+                    assert all(v.get() for v in picker.variables.values())
+                    for key, variable in picker.variables.items():
+                        variable.set(key in ('companies', 'references', 'custom'))
+                    picker.terms.insert('1.0', 'Alice Dupont')
+                    picker.apply()
+                    deadline = time.monotonic() + 25
+                    while (app.report is None or app.busy) and not errors and time.monotonic() < deadline:
+                        root.update()
+                        time.sleep(.01)
+                    assert not errors and app.report is not None and not app.busy
+                    assert app.report.findings and not app.all_boxes() and not app.approved and not app.choices
+                    assert {f.kind for f in app.report.findings} >= {'Entreprise / client', 'Référence métier', 'Texte ajouté'}
+                    assert all(category_for(f.kind) in app.detection_options.categories for f in app.report.findings)
+                    result['category_selection'] = True
+                    result['business_dictionary'] = True
             finally:
                 app.worker.stop()
                 app.worker.thread.join(timeout=10)

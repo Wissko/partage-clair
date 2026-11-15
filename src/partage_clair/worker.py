@@ -43,6 +43,7 @@ class DocumentWorker:
     def _run(self):
         document = None
         detection_index = None
+        manual_findings = set()
         last_export = None
         cache = OrderedDict()
 
@@ -83,6 +84,7 @@ class DocumentWorker:
                             document.close()
                         document = candidate
                         detection_index = None
+                        manual_findings.clear()
                         last_export = None
                         cache[(0, 90)] = image
                         info = DocumentInfo(Path(args['path']).name, document.kind,
@@ -135,13 +137,21 @@ class DocumentWorker:
                                 current = index.findings.get(key)
                                 index.findings[key] = (replace(current, zones=merge_zones(
                                     (*old.zones, *current.zones))) if current else old)
-                            result = replace(result, findings=tuple(index.findings.values()))
+                            # Keep the complete registry for approved masks and undo/export.
+                            # Never reintroduce unselected categories into a new report.
+                            from .detection_options import category_for
+                            visible = {f.id: f for f in result.findings}
+                            for key, old in detection_index.findings.items():
+                                if key in manual_findings and category_for(old.kind) in result.categories:
+                                    visible.setdefault(key, index.findings[key])
+                            result = replace(result, findings=tuple(index.findings[k] for k in visible))
                         detection_index = index
                     elif operation in ('find_name', 'find_term'):
                         if detection_index is None:
                             raise ValueError('Lancez d’abord une analyse complète du document.')
                         method = detection_index.add_name if operation == 'find_name' else detection_index.add_term
                         result = method(args['value'], cancel=self.cancel)
+                        manual_findings.add(result.id)
                     else:
                         raise ValueError('Opération inconnue.')
                 except Exception as error:

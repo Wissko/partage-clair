@@ -14,6 +14,7 @@ from PIL import Image, ImageTk
 
 from . import __version__
 from .core import Box, ExportCancelled
+from .detection_options import CATEGORIES, DetectionOptions
 from .worker import DocumentWorker
 
 
@@ -26,6 +27,8 @@ class App:
         self.choices = {}
         self.report, self.review, self.preview_finding = None, None, None
         self.assurance_window = None
+        self.detection_window = None
+        self.detection_options = DetectionOptions()
         self.analysis_revision = 0
         self.purpose, self.audience = '', ''
         self.criteria_snapshot, self.copy_snapshot = None, None
@@ -85,6 +88,11 @@ class App:
         self.assurance_button = ttk.Button(detection_bar, text='Score et revue des risques…',
                                            command=self.show_assurance)
         self.assurance_button.pack(side='left')
+        self.detection_settings = ttk.Button(detection_bar, text='Choisir les données…',
+                                             command=self.show_detection_options)
+        self.detection_settings.pack(side='right')
+        self.scope_hint = tk.StringVar(value='Détection : toutes les catégories • Expressions personnalisées : 0')
+        ttk.Label(frame, textvariable=self.scope_hint, wraplength=1040).pack(anchor='w', pady=(0, 4))
         self.score_hint = tk.StringVar(value='Score de préparation : analyse requise • Aucune garantie d’anonymat')
         ttk.Label(frame, textvariable=self.score_hint, wraplength=1040).pack(anchor='w', pady=(0, 5))
         body = ttk.Frame(frame)
@@ -169,6 +177,7 @@ class App:
             (self.delete_button, ready and any(b.page == self.page + 1 for b in self.all_boxes())),
             (self.detect_button, ready), (self.review_button, ready and self.report is not None),
             (self.assurance_button, ready),
+            (self.detection_settings, not self.busy),
             (self.save, ready), (self.cancel_button, self.busy in ('export', 'scan', 'audit_export')),
             (self.output_button, bool(self.last_output) and not self.busy and not self.dirty()))
         for button, enabled in flags:
@@ -203,7 +212,30 @@ class App:
         if self.doc and not self.busy and not self.closing:
             self.worker.cancel.clear()
             self.status.set('Analyse locale de toutes les pages : texte et OCR…')
-            self.begin('scan', use_ocr=True)
+            self.begin('scan', use_ocr=True, options=self.detection_options)
+
+    def show_detection_options(self):
+        if self.detection_window:
+            self.detection_window.window.lift()
+        else:
+            from .detection_ui import DetectionWindow
+            self.detection_window = DetectionWindow(self)
+
+    def set_detection_options(self, options):
+        if self.busy or options == self.detection_options:
+            return
+        self.detection_options = options
+        count = len(options.categories)
+        scope = 'toutes les catégories' if options.full_scope else f'{count}/{len(CATEGORIES)} catégories (partiel)'
+        self.scope_hint.set(f'Détection : {scope} • Expressions personnalisées : {len(options.terms)}')
+        # Old masks remain explicit approvals; an old score cannot describe the new scope.
+        self.analysis_revision += 1
+        self.invalidate_assurance()
+        self.report, self.preview_finding = None, None
+        if self.review:
+            self.review.close()
+        self.controls()
+        self.detect()
 
     def show_review(self):
         if self.report is None:
@@ -404,10 +436,14 @@ class App:
                 elif operation == 'scan':
                     self.analysis_revision += 1
                     self.invalidate_assurance()
+                    from dataclasses import replace
                     self.report = payload
                     # Existing validations keep their complete geometry after a rescan.
                     registry = {f.id: f for f in payload.findings}
-                    self.approved = {key: registry[key] for key in self.approved if key in registry}
+                    self.approved = {key: registry.get(key, old) for key, old in self.approved.items()}
+                    # A scope change never silently removes previously approved masks.
+                    registry.update(self.approved)
+                    self.report = replace(payload, findings=tuple(registry.values()))
                     if self.review:
                         self.review.refresh()
                     self.show_review()
@@ -415,11 +451,10 @@ class App:
                 elif operation in ('find_name', 'find_term'):
                     self.analysis_revision += 1
                     self.invalidate_assurance()
-                    from .detection import ScanReport
+                    from dataclasses import replace
                     findings = {f.id: f for f in self.report.findings}
                     findings[payload.id] = payload
-                    self.report = ScanReport(tuple(findings.values()), self.report.warnings,
-                                             self.report.pages, self.report.ocr_pages)
+                    self.report = replace(self.report, findings=tuple(findings.values()))
                     if self.review:
                         self.review.refresh()
                         self.review.tree.selection_set(payload.id)

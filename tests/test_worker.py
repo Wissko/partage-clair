@@ -127,3 +127,22 @@ def test_worker_replacement_is_bound_to_approved_group_and_audited(worker, tmp_p
     event = result(worker, worker.submit('export', target=bad, boxes=[], groups=[],
                                          choices={name.id: MethodChoice('pseudonym', 'Personne A')}))
     assert event[2] == 'error' and not bad.exists()
+
+
+def test_worker_scope_change_keeps_export_registry_without_leaking_excluded_suggestions(worker, tmp_path):
+    from partage_clair.detection_options import DetectionOptions
+    from tests.test_detection import make_pdf
+    source = make_pdf(tmp_path / 'business.pdf', [
+        'Nom : Alice Dupont\nClient : Orion Fictif\nEmail : alice@example.test\nProjet Albatros'])
+    result(worker, worker.submit('open', path=source))[3][1].close()
+    report = result(worker, worker.submit('scan', use_ocr=False,
+        options=DetectionOptions(terms=('projet albatros',))))[3]
+    name = next(f for f in report.findings if f.kind == 'Nom' and f.value == 'Alice Dupont')
+    assert any(f.kind == 'Texte ajouté' for f in report.findings)
+    second = result(worker, worker.submit('scan', use_ocr=False,
+        options=DetectionOptions(('emails',))))[3]
+    assert {f.kind for f in second.findings} == {'E-mail'}
+    assert second.categories == ('emails',)
+    # A previously approved name must remain resolvable by the export worker.
+    output = tmp_path / 'approved-before-scope-change.pdf'
+    assert result(worker, worker.submit('export', target=output, boxes=[], groups=[name.id], dpi=150))[2] == 'ok'

@@ -6,6 +6,7 @@ import unicodedata
 from dataclasses import dataclass
 
 from .core import Box, DocumentError, check_cancel
+from .detection_options import ALL_CATEGORIES, DetectionOptions, category_for
 
 MAX_CHARACTERS = 500_000
 MAX_FINDINGS = 2000
@@ -112,6 +113,7 @@ class ScanReport:
     warnings: tuple[str, ...]
     pages: int
     ocr_pages: int
+    categories: tuple[str, ...] = ALL_CATEGORIES
 
 
 def identifier(kind, value):
@@ -156,7 +158,7 @@ PATTERNS = (
                                      r'(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4})')),
 )
 NAME_LABEL = re.compile(r'(?im)^[ \t]*(?:nom(?: complet| d[’\']usage)?|pr[ée]nom(?: et nom)?|'
-                        r'surnom|pseudonyme|name|titulaire|client)[ :]+([^\n\r|;:]{2,70})')
+                        r'surnom|pseudonyme|name|titulaire)[ :]+([^\n\r|;:]{2,70})')
 NON_PERSON_LABEL = re.compile(r'^(?:adresse|ville|profession|metier|organisme|entreprise|employeur|'
                               r'etablissement|reference(?: client)?|date(?: de naissance)?|lieu|'
                               r'iban|courriel|e-?mail|telephone|montant|revenu)\s*:', re.I)
@@ -205,13 +207,19 @@ class DetectionIndex:
         self.findings[finding.id] = finding
         return finding
 
-    def suggest(self, cancel=None):
+    def suggest(self, cancel=None, *, options=None):
+        from .business import business_hits, is_business_field
         from .context import context_hits, explanation
+        options = options or DetectionOptions()
+        enabled = set(options.categories)
         names = {}
         groups = {}
+        propagated = set()
         for layer in self.layers:
             check_cancel(cancel)
             for kind, pattern in PATTERNS:
+                if category_for(kind) not in enabled:
+                    continue
                 for match in pattern.finditer(layer.text):
                     start, end = match.span(1) if kind == 'Date de naissance' else match.span()
                     value = layer.text[start:end].strip()
@@ -227,15 +235,32 @@ class DetectionIndex:
                     entry = groups.setdefault((kind, key), [value, []])
                     entry[1].extend(layer.zones(start, end))
             for kind, start, end in context_hits(layer.text):
+                if category_for(kind) not in enabled:
+                    continue
+                if kind == 'Profession / organisme' and is_business_field(layer.text[start:end]):
+                    continue
                 value = layer.text[start:end].strip()
                 entry = groups.setdefault((kind, canonical(value)), [value, []])
                 entry[1].extend(layer.zones(start, end))
+            for kind, start, end, propagate in business_hits(layer.text):
+                if category_for(kind) not in enabled:
+                    continue
+                value = layer.text[start:end].strip()
+                key = kind, canonical(value)
+                entry = groups.setdefault(key, [value, []])
+                entry[1].extend(layer.zones(start, end))
+                if propagate:
+                    propagated.add(key)
+            if len(groups) > MAX_FINDINGS:
+                raise DocumentError('Trop de suggestions. Analyse arrêtée sans validation automatique.')
+            if 'names' not in enabled:
+                continue
             for match in NAME_LABEL.finditer(layer.text):
                 value = match.group(1).strip(' ,.-')
                 if any(c.isalpha() for c in value) and 1 <= len(WORD.findall(value)) <= 5:
                     names.setdefault(canonical(value), (value, 'Libellé de nom'))
             for line in layer.text.splitlines():
-                if NON_PERSON_LABEL.match(canonical(line)):
+                if is_business_field(line) or NON_PERSON_LABEL.match(canonical(line)):
                     continue
                 tokens = list(WORD.finditer(line))
                 run = []
@@ -257,14 +282,27 @@ class DetectionIndex:
                         run.append(token)
             if len(names) + len(groups) > MAX_FINDINGS:
                 raise DocumentError('Trop de suggestions. Analyse arrêtée sans validation automatique.')
-        for value, reason in names.values():
-            self.add_name(value, cancel=cancel, reason=reason)
+        if 'names' in enabled:
+            for value, reason in names.values():
+                self.add_name(value, cancel=cancel, reason=reason)
         for (kind, key), (value, zones) in groups.items():
+            check_cancel(cancel)
+            if (kind, key) in propagated:
+                zones.extend(self.find_terms((value,), cancel))
             zones = merge_zones(zones)
             if zones:
                 finding = Finding(identifier(kind, key), kind, value, zones, reason=explanation(kind))
                 self.findings[finding.id] = finding
-        return tuple(sorted(self.findings.values(), key=lambda f: (f.kind != 'Nom', f.kind, f.value.casefold())))
+        if 'custom' in enabled:
+            for term in options.terms:
+                check_cancel(cancel)
+                # A missing expression is not a scan failure or evidence of absence.
+                if self.find_terms((term,), cancel):
+                    self.add_term(term, cancel=cancel)
+        if len(self.findings) > MAX_FINDINGS:
+            raise DocumentError('Trop de suggestions. Analyse arrêtée sans validation automatique.')
+        return tuple(sorted((f for f in self.findings.values() if category_for(f.kind) in enabled),
+                            key=lambda f: (f.kind != 'Nom', f.kind, f.value.casefold())))
 
     def approved_zones(self, identifiers):
         zones = []
@@ -275,7 +313,8 @@ class DetectionIndex:
         return merge_zones(zones)
 
 
-def scan(document, *, use_ocr=True, progress=None, cancel=None):
+def scan(document, *, use_ocr=True, progress=None, cancel=None, options=None):
+    options = options or DetectionOptions()
     layers, warnings, ocr_pages = [], [], 0
     engine = None
     if use_ocr:
@@ -313,8 +352,8 @@ def scan(document, *, use_ocr=True, progress=None, cancel=None):
             raise DocumentError('Document trop dense pour une analyse complète (500 000 caractères).')
     check_cancel(cancel)
     index = DetectionIndex(layers)
-    findings = index.suggest(cancel)
+    findings = index.suggest(cancel, options=options)
     if progress:
         progress(document.pages, document.pages)
-    report = ScanReport(findings, tuple(warnings), document.pages, ocr_pages)
+    report = ScanReport(findings, tuple(warnings), document.pages, ocr_pages, options.categories)
     return index, report

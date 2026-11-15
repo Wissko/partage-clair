@@ -6,13 +6,13 @@ Partage Clair permet de masquer un nom, une adresse ou une référence sur un do
 et de créer une copie sans reprendre ses métadonnées intégrées. Le projet est libre,
 sans compte, sans abonnement, sans API et sans télémétrie.
 
-**Version 0.5 : préversion pour des fichiers de confiance.** Aucun audit de
+**Version 0.6 : préversion pour des fichiers de confiance.** Aucun audit de
 sécurité indépendant n'a encore été réalisé. La détection locale propose des informations
 à vérifier ; elle n'est pas exhaustive. Le programme n'est pas un antivirus ni une sandbox.
 
 ## Démarrer sur Windows sans Python
 
-Téléchargez le ZIP `PartageClair-0.5.1-windows-x64.zip` depuis les
+Téléchargez le ZIP `PartageClair-0.6.0-windows-x64.zip` depuis les
 [versions du projet](https://github.com/Wissko/partage-clair/releases), extrayez-le,
 puis lancez `PartageClair.exe`. Le ZIP contient aussi les instructions et les licences
 des composants embarqués. Il est destiné à Windows 64 bits. Le binaire n'est pas signé
@@ -59,6 +59,41 @@ L'analyse s'effectue en arrière-plan et peut être annulée. **Relancer la dét
 de recommencer manuellement ; changer de page ou de zoom ne relance pas l'analyse. Ouvrir
 un autre document efface les validations précédentes et analyse le nouveau fichier sans
 appliquer de masque ni de remplacement automatiquement.
+
+### Choisir les données avant un partage ou un LLM
+
+**Choisir les données…** permet de sélectionner les catégories avant d'ouvrir un fichier,
+ou d'appliquer une nouvelle sélection au document courant et de relancer l'analyse :
+
+- Noms, adresses/lieux/GPS, mails, téléphones, dates/horaires, informations bancaires.
+- Entreprises et clients, montants/prix, identifiants et références de contrats ou dossiers.
+- Données métier de banque, assurance, PME et ETI, autres indices personnels/techniques.
+- Mots et expressions confidentiels : une expression par ligne, jusqu'à 200.
+
+**Toutes les catégories sont cochées par défaut.** Les choix et expressions restent en
+mémoire pour la session, y compris les prochains documents, sans fichier de préférences.
+Les validations sont effacées à l'ouverture d'un autre document. Modifier la sélection
+conserve les masques déjà validés, invalide la revue/ancien score et ne valide aucune
+nouvelle proposition. Les catégories sont des familles de règles : un passage peut
+contenir plusieurs types de données et produire des propositions qui se chevauchent.
+
+Les libellés métier proposent notamment clients/fournisseurs/assureurs, comptes, BIC/RIB,
+SIREN/SIRET/TVA, contrats, polices, sinistres, factures et devis. Les valeurs ainsi repérées
+sont recherchées intégralement dans toutes les pages, sans décomposer un nom d'entreprise.
+Une ligne contenant une marge, franchise, cotisation, prime annuelle, chiffre d'affaires
+ou autre indice métier est proposée à relire. Un compte explicitement libellé reste
+proposé même si une erreur OCR empêche de vérifier sa somme de contrôle.
+
+Pour un client, projet, produit interne ou clause spécifique, ajoutez son expression à
+la liste ; la recherche ignore casse et accents et respecte les mots entiers. Une
+expression absente des propositions peut avoir été manquée par l'OCR. Il n'existe pas de
+détection universelle des secrets commerciaux : complétez la liste et relisez toutes les pages.
+
+**Une sélection partielle est affichée et plafonne le score à 49/100.** Le contrôle de la
+copie recherche toujours toutes les catégories, même si l'analyse initiale était filtrée.
+Avant de donner une copie à un LLM, validez les zones, exportez, contrôlez et relisez-la.
+Partage Clair ne transmet rien à un LLM et ne garantit pas que tout document est anonyme
+ou intégralement débarrassé de ses secrets métier.
 
 ### Valider un nom sur tout le document
 

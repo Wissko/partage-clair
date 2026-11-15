@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0 — 2026-11-15
+
+- Sélection de 12 catégories de détection, toutes cochées par défaut, avant ou après ouverture.
+- Règles locales pour banque, assurance, PME/ETI : entreprises, comptes/BIC/RIB, SIRET/TVA,
+  contrats, polices, sinistres, montants et passages métier potentiellement confidentiels.
+- Expressions confidentielles en mémoire, une par ligne, recherchées sur toutes les pages.
+- Valeurs après libellés métier propagées intégralement dans le document, sans découper les entreprises.
+- Conservation des masques déjà approuvés après filtrage, aucune validation automatique nouvelle.
+- Score rendu caduc lors d'un changement et plafonné à 49 pour une sélection partielle.
+- Contrôle final de copie non filtré ; tests de sélection, propagation, score et export.
+
 ## 0.5.1 — 2026-11-15
 
 - Analyse locale automatique après ouverture réussie d'un document, y compris au lancement avec un fichier.

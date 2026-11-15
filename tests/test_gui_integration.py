@@ -320,3 +320,73 @@ def test_cancel_automatic_scan_does_not_restart_and_manual_retry_is_available(tm
         assert not errors
     finally:
         cleanup(root, app)
+
+
+def test_category_picker_dictionary_and_scope_changes_keep_human_validation(tmp_path, monkeypatch, tk_root):
+    from partage_clair.detection import scan
+    from partage_clair.detection_options import ALL_CATEGORIES
+    from tests.test_detection import make_pdf
+    source = make_pdf(tmp_path / 'business.pdf', [
+        'Nom : Alice Dupont\nClient : Orion Fictif\nMail : alice@example.test\nProjet Albatros',
+        'ALICE et DUPONT\nORION FICTIF\nPROJET ALBATROS'])
+
+    def native(document, **arguments):
+        arguments['use_ocr'] = False
+        return scan(document, **arguments)
+    monkeypatch.setattr('partage_clair.detection.scan', native)
+    errors = []
+    monkeypatch.setattr('partage_clair.gui.messagebox.showerror', lambda *args: errors.append(args))
+    root = tk_root
+    app = App(root)
+    try:
+        app.show_detection_options()
+        picker = app.detection_window
+        assert len(picker.variables) == len(ALL_CATEGORIES)
+        assert all(v.get() for v in picker.variables.values())
+        for key, variable in picker.variables.items():
+            variable.set(key == 'emails')
+        picker.apply()
+        assert app.detection_window is None and app.detection_options.categories == ('emails',)
+        app.load(source)
+        wait(root, lambda: app.report is not None and not app.busy)
+        assert {f.kind for f in app.report.findings} == {'E-mail'}
+        assert not app.approved and not app.all_boxes()
+        app.show_detection_options()
+        picker = app.detection_window
+        picker.select_all()
+        picker.terms.insert('1.0', 'projet albatros\nabsent fictif')
+        picker.apply()
+        assert app.report is None and app.get_preparation_score().value is None
+        wait(root, lambda: app.report is not None and not app.busy)
+        phrase = next(f for f in app.report.findings if f.kind == 'Texte ajouté')
+        assert phrase.pages == (1, 2)
+        assert not app.approved and not app.choices and not app.all_boxes()
+        finding = next(f for f in app.report.findings if f.kind == 'Nom' and f.value == 'Alice Dupont')
+        app.approve_finding(finding)
+        approved_state = app.mask_state()
+        app.criteria_snapshot = app.review_signature()
+        app.show_detection_options()
+        picker = app.detection_window
+        for key, variable in picker.variables.items():
+            variable.set(key == 'emails')
+        picker.terms.delete('1.0', 'end')
+        picker.apply()
+        assert app.report is None and app.criteria_snapshot is None
+        wait(root, lambda: app.report is not None and not app.busy)
+        assert app.report.categories == ('emails',)
+        assert app.mask_state() == approved_state
+        assert {f.kind for f in app.report.findings} == {'E-mail', 'Nom'}
+        assert app.get_preparation_score().value <= 49
+        assert 'partiel' in app.scope_hint.get()
+        app.revoke_finding(finding.id)
+        assert not app.all_boxes()
+        app.undo_mask()
+        assert app.mask_state() == approved_state
+        app.load(source)
+        wait(root, lambda: app.report is not None and not app.busy)
+        assert not app.approved and not app.all_boxes()
+        assert app.detection_options.categories == ('emails',)
+        assert {f.kind for f in app.report.findings} == {'E-mail'}
+        assert not errors
+    finally:
+        cleanup(root, app)

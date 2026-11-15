@@ -1,4 +1,4 @@
-PARTAGE CLAIR 0.5.1 — WINDOWS 64 BITS
+PARTAGE CLAIR 0.6.0 — WINDOWS 64 BITS
 
 1. Extrayez le ZIP dans un dossier de votre choix.
 2. Lancez PartageClair.exe. Python n'est pas nécessaire.
@@ -17,6 +17,18 @@ manuellement. Le changement de page et le zoom ne déclenchent pas de nouvelle a
 Un nouveau document efface les validations précédentes : elles ne sont jamais transférées.
 
 SCORE ET REVUE DES RISQUES
+« Choisir les données » propose 12 catégories, toutes cochées par défaut : noms,
+adresses, mails, téléphones, dates, banque, entreprises/clients, montants, références,
+données métier, autres indices et expressions confidentielles personnalisées.
+Ajoutez un client, projet interne ou clause (une expression par ligne, 200 maximum).
+Ces choix et expressions restent en mémoire pour la session, sans envoi ni sauvegarde.
+Appliquer de nouveaux choix relance l'analyse et conserve les masques déjà approuvés,
+sans valider de nouvelle zone. Une sélection partielle plafonne le score à 49/100.
+Les règles métier ciblent notamment banque, assurance, PME/ETI : contrats, polices,
+sinistres, comptes, SIRET, prix, marges, franchises et cotisations. Elles peuvent manquer
+des secrets. Avant un LLM, exportez, contrôlez et relisez chaque page de la copie.
+L'application ne transmet rien à un LLM ; le contrôle final de copie n'est pas filtré.
+
 Dans les suggestions, vous pouvez choisir : masquer entièrement, réduire la précision
 (date -> année, âge -> tranche de 10 ans, montant -> tranche de 1 000), ou inscrire un
 pseudonyme. Choisir une méthode ne l'applique pas : validez explicitement le groupe.

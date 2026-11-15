@@ -21,6 +21,29 @@ ces valeurs n'est écrit sur disque ni envoyé à un service.
 
 ## Types proposés
 
+Depuis 0.6, **Choisir les données…** donne accès à 12 catégories, toutes actives par défaut.
+Le filtre s'applique dans le moteur aux règles de texte PDF et d'OCR, sur toutes les pages.
+Une nouvelle sélection relance l'analyse sans masquer automatiquement ; les anciennes
+validations restent exportables et visibles, même si leur catégorie a été désactivée.
+Les nouvelles propositions excluent les familles décochées. Des familles différentes
+peuvent couvrir des pixels communs ; ce ne sont pas des classes sémantiques exclusives.
+
+Des règles de libellés métier proposent entreprises/clients, comptes/BIC/RIB, identifiants
+d'entreprise, contrats, polices, sinistres, devis et factures. Les valeurs repérées sont
+recherchées en entier ailleurs dans le document, sans découper les entreprises en mots.
+Le compte libellé est proposé même avec une somme de contrôle invalide : il peut s'agir
+d'une erreur OCR. Ces candidats ne certifient ni la validité d'un compte ni sa nature.
+Des mots contextuels proposent aussi des lignes financières ou commerciales à relire.
+
+La liste d'expressions confidentielles accepte jusqu'à 200 entrées (2 à 160 caractères),
+une par ligne. Elle utilise les mêmes recherches de mots entiers, casse/accents ignorés.
+Elle reste en mémoire pendant la session ; une entrée non trouvée ne bloque pas l'analyse
+et ne prouve pas l'absence du secret. La recherche manuelle reste possible après analyse.
+Le score plafonné à 49 signale toute sélection partielle. Le contrôle de l'export refait
+une analyse de toutes les catégories et recherche les valeurs précédemment approuvées.
+Les tests synthétiques couvrent ces catégories ; ils ne constituent pas une mesure de
+rappel sur tous les documents de banque, d'assurance, de PME ou d'ETI.
+
 E-mails, téléphones français, IBAN (modulo 97), numéros de carte (Luhn), adresses françaises,
 dates de naissance explicitement libellées. Les noms sont proposés à partir de libellés
 et de suites de mots avec des indices de capitalisation. Il ne s'agit pas d'une reconnaissance

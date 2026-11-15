@@ -88,8 +88,12 @@ class ReviewWindow:
             self.tree.selection_set(selection[0])
         report = self.app.report
         warning = ' '.join(report.warnings)
+        from .detection_options import ALL_CATEGORIES
+        scope = ('Toutes les catégories.' if report.categories == ALL_CATEGORIES else
+                 f'Analyse partielle : {len(report.categories)}/{len(ALL_CATEGORIES)} catégories. '
+                 'Les masques déjà validés restent conservés.')
         self.coverage.set(f'OCR : {report.ocr_pages}/{report.pages} pages. '
-                          f'{warning} La détection peut manquer des informations : relisez la copie.')
+                          f'{scope} {warning} La détection peut manquer des informations : relisez la copie.')
 
     def chosen(self):
         selection = self.tree.selection()
