@@ -1,5 +1,6 @@
 """Exercise the real Tk event loop with synthetic files, without user dialogs."""
 
+import gc
 import os
 import time
 import tkinter as tk
@@ -31,6 +32,15 @@ def tk_root():
     root.withdraw()
     yield root
     root.destroy()
+    gc.collect()
+
+
+@pytest.fixture(autouse=True)
+def collect_gui_cycles_on_main_thread(tk_root):
+    yield
+    # Test Apps contain Tk variable/callback cycles. Reclaim them here while
+    # their Tcl interpreter still exists, never later on a document worker.
+    gc.collect()
 
 
 def cleanup(root, app):
