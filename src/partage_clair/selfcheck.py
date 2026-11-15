@@ -44,7 +44,7 @@ def run(report):
             from .detection import canonical, scan
             image = Image.new('RGB', (1000, 270), 'white')
             ImageDraw.Draw(image).multiline_text((25, 30),
-                                      'Nom : Alice Dupont\nClient : Orion Fictif\nPolice : POL-760023', fill='black',
+                                      'Alice Dupont travaille chez AXA.\nClient : Orion Fictif\nPolice : POL-760023', fill='black',
                                       font=ImageFont.load_default(size=34))
             image.save(folder / 'ocr-source.png')
             image.close()
@@ -52,6 +52,9 @@ def run(report):
                 with Document(folder / 'ocr-source.png') as doc:
                     index, report_ocr = scan(doc)
                     assert report_ocr.ocr_pages == 1 and not report_ocr.warnings
+                    assert report_ocr.ner_requested and report_ocr.ner_pages == 1
+                    assert any(f.kind == 'Nom' and f.value == 'Alice Dupont' for f in report_ocr.findings)
+                    assert any(f.kind == 'Entreprise / client' and f.value == 'AXA' for f in report_ocr.findings)
                     finding = index.add_name('Alice Dupont')
                     assert finding.zones
                     doc.export(folder / 'ocr-masked.png', list(finding.zones))
@@ -79,6 +82,7 @@ def run(report):
             result['local_ocr'] = True
             result['export_audit'] = True
             result['replacement_export'] = True
+            result['context_recognition'] = True
             # Validate the bundled Tcl/Tk resources as well as the decoder DLLs.
             import time
             import tkinter as tk
@@ -99,6 +103,7 @@ def run(report):
                         time.sleep(.01)
                     assert not errors and app.report is not None and not app.busy
                     assert app.report.ocr_pages == 1 and not app.report.warnings
+                    assert app.report.ner_requested and app.report.ner_pages == 1
                     assert app.report.findings and not app.all_boxes() and not app.approved and not app.choices
                     result['automatic_detection'] = True
                     from .detection_options import category_for

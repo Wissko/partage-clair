@@ -92,8 +92,10 @@ class ReviewWindow:
         scope = ('Toutes les catégories.' if report.categories == ALL_CATEGORIES else
                  f'Analyse partielle : {len(report.categories)}/{len(ALL_CATEGORIES)} catégories. '
                  'Les masques déjà validés restent conservés.')
+        context = (f'Contexte : {report.ner_pages}/{report.pages} pages.' if report.ner_requested
+                   else 'Contexte non demandé pour ces catégories.')
         self.coverage.set(f'OCR : {report.ocr_pages}/{report.pages} pages. '
-                          f'{scope} {warning} La détection peut manquer des informations : relisez la copie.')
+                          f'{context} {scope} {warning} La détection peut manquer des informations : relisez la copie.')
 
     def chosen(self):
         selection = self.tree.selection()

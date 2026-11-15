@@ -39,6 +39,18 @@ JSON de masques : ce fichier décrit les positions, pas le contenu du document.
 
 ## Analyse locale avant masquage
 
+Depuis la version 0.7, le modèle français NERmemberta propose aussi personnes,
+organisations et lieux à partir de phrases, sans dépendre d'un libellé de champ. Le
+modèle ONNX, sa configuration et son tokenizer sont installés explicitement puis vérifiés
+par taille et SHA-256 avant utilisation. Dans le portable, ils sont inclus dans models/ner,
+à côté du programme. L'analyse ne télécharge rien et ne fait appel à aucune API distante.
+ONNX Runtime fonctionne sur CPU avec télémétrie/profilage désactivés ; Tokenizer.from_file
+lit uniquement le fichier local, sans client de téléchargement utilisé par l'application.
+Le cache global conserve le modèle/tokenizer, pas les textes ou résultats des documents.
+Le cache temporaire de phrases répétées disparaît après chaque appel d'analyse.
+Les propositions passent toujours par la validation et les protections d'export existantes.
+Un modèle absent, modifié ou en échec provoque un avertissement et un score limité.
+
 Depuis la version 0.6, toutes les catégories sont sélectionnées par défaut, mais peuvent
 être choisies explicitement. Les expressions confidentielles ajoutées restent en mémoire
 pour la session et ne sont ni écrites dans des préférences, ni incluses dans le bilan JSON.

@@ -6,17 +6,21 @@ Partage Clair permet de masquer un nom, une adresse ou une référence sur un do
 et de créer une copie sans reprendre ses métadonnées intégrées. Le projet est libre,
 sans compte, sans abonnement, sans API et sans télémétrie.
 
-**Version 0.6 : préversion pour des fichiers de confiance.** Aucun audit de
+**Version 0.7 : préversion pour des fichiers de confiance.** Aucun audit de
 sécurité indépendant n'a encore été réalisé. La détection locale propose des informations
 à vérifier ; elle n'est pas exhaustive. Le programme n'est pas un antivirus ni une sandbox.
 
 ## Démarrer sur Windows sans Python
 
-Téléchargez le ZIP `PartageClair-0.6.0-windows-x64.zip` depuis les
+Téléchargez le ZIP `PartageClair-0.7.0-windows-x64.zip` depuis les
 [versions du projet](https://github.com/Wissko/partage-clair/releases), extrayez-le,
 puis lancez `PartageClair.exe`. Le ZIP contient aussi les instructions et les licences
 des composants embarqués. Il est destiné à Windows 64 bits. Le binaire n'est pas signé
 numériquement ; ne désactivez pas les protections de votre ordinateur pour le lancer.
+
+Gardez le dossier **models** à côté de l'exécutable : il contient le modèle français de
+reconnaissance du contexte. Le ZIP est plus volumineux (poids du modèle : 443 Mo).
+Ces poids ne sont pas décompressés à chaque lancement ; tout est prêt après extraction.
 
 ## Installation depuis les sources
 
@@ -33,18 +37,21 @@ python -m venv .venv
 Windows (PowerShell) :
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install ".[ocr]"
+.\.venv\Scripts\python.exe -m pip install -e ".[ocr,ner]"
+.\.venv\Scripts\python.exe scripts/fetch_ner_model.py
 .\.venv\Scripts\partage-clair-gui.exe
 ```
 
 macOS / Linux :
 
 ```sh
-.venv/bin/python -m pip install ".[ocr]"
+.venv/bin/python -m pip install -e ".[ocr,ner]"
+.venv/bin/python scripts/fetch_ner_model.py
 .venv/bin/partage-clair-gui
 ```
 
-L'installation télécharge les dépendances. **Le traitement des documents fonctionne
+L'installation télécharge les dépendances et le modèle public, dont les empreintes sont
+vérifiées. **Le traitement des documents fonctionne
 ensuite sans réseau.** macOS et Linux utilisent actuellement cette installation depuis les sources.
 
 1. Ouvrez un PDF ou une image : **l’analyse locale démarre automatiquement** après son ouverture.
@@ -59,6 +66,28 @@ L'analyse s'effectue en arrière-plan et peut être annulée. **Relancer la dét
 de recommencer manuellement ; changer de page ou de zoom ne relance pas l'analyse. Ouvrir
 un autre document efface les validations précédentes et analyse le nouveau fichier sans
 appliquer de masque ni de remplacement automatiquement.
+
+### Reconnaître les noms dans une phrase
+
+Le moteur combine les règles et **un modèle français qui lit le contexte**,
+[NERmemberta de CATIE](https://huggingface.co/CATIE-AQ/NERmemberta-4entities).
+Par exemple, « Delmas travaille chez AXA » peut produire un nom et une organisation,
+sans « Nom : » ni « Entreprise : ». Il propose aussi des lieux, et peut reconnaître
+des noms en minuscules. Les règles de formats continuent à chercher mails, téléphones,
+comptes et autres identifiants.
+
+Les propositions sont recherchées dans les autres pages : noms complets et composants
+pour les personnes, expression entière pour les organisations et lieux. **Rien n'est
+masqué avant validation.** Le modèle est exécuté sur CPU dans le même worker local, sur
+le texte PDF et celui de l'OCR. Les longues couches de texte sont parcourues par blocs
+de 512 tokens avec chevauchement, complétés par une lecture par phrases. Aucun texte
+de document n'est envoyé, enregistré pour un entraînement ou conservé dans un cache global.
+
+La fenêtre de vérification indique les pages analysées par le modèle. S'il manque ou
+échoue, les règles restent disponibles et un avertissement limite le score à 49/100.
+Une absence de proposition ne prouve pas l'absence de nom : erreurs OCR, ambiguïtés,
+langues autres que le français et secrets métier inconnus demandent toujours une revue.
+Les résultats de tests synthétiques ne mesurent pas l'exhaustivité sur vos documents.
 
 ### Choisir les données avant un partage ou un LLM
 
@@ -106,8 +135,8 @@ vérifiez les zones proposées avant de valider.
 
 Le champ **Nom ou détail oublié** permet d'ajouter un nom à rechercher partout,
 puis de valider ses zones. Une faute OCR ou une autre orthographe n'est pas regroupée
-automatiquement : ajoutez-la séparément si nécessaire. Les noms sont proposés par des
-libellés et des indices typographiques locaux, pas par un modèle de compréhension universel.
+automatiquement : ajoutez-la séparément si nécessaire. Les noms sont proposés par le modèle
+français, les libellés et les indices typographiques ; aucun ne garantit de reconnaître toutes les personnes.
 
 Une validation est groupée : la retirer, l'annuler ou la rétablir agit sur toutes ses zones.
 L'export retrouve ces zones dans l'index complet du document, indépendamment de la page
@@ -245,7 +274,8 @@ Partage Clair privilégie ici un parcours simple en français et un masquage man
 ## Développement
 
 ```sh
-python -m pip install -e ".[dev,ocr]"
+python -m pip install -e ".[dev,ocr,ner]"
+python scripts/fetch_ner_model.py
 python -m pytest -q
 python -m ruff check .
 python -m pip_audit -r requirements.txt
@@ -267,7 +297,8 @@ Mesures et protocole reproductible : [BENCHMARKS.md](docs/BENCHMARKS.md).
 Pour reconstruire le portable Windows et effectuer son autotest hors ligne :
 
 ```sh
-python -m pip install -e ".[build,ocr]"
+python -m pip install -e ".[build,ocr,ner]"
+python scripts/fetch_ner_model.py
 python scripts/build_windows.py
 ```
 

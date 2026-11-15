@@ -5,7 +5,7 @@ import re
 import unicodedata
 from dataclasses import dataclass
 
-from .core import Box, DocumentError, check_cancel
+from .core import Box, DocumentError, ExportCancelled, check_cancel
 from .detection_options import ALL_CATEGORIES, DetectionOptions, category_for
 
 MAX_CHARACTERS = 500_000
@@ -114,6 +114,8 @@ class ScanReport:
     pages: int
     ocr_pages: int
     categories: tuple[str, ...] = ALL_CATEGORIES
+    ner_pages: int = 0
+    ner_requested: bool = False
 
 
 def identifier(kind, value):
@@ -172,6 +174,7 @@ class DetectionIndex:
             raise DocumentError('Document trop dense pour une analyse complète (500 000 caractères).')
         self.normalized = tuple(normalize(layer.text) for layer in self.layers)
         self.findings = {}
+        self.warnings = []
 
     def find_terms(self, terms, cancel=None):
         zones = []
@@ -207,7 +210,7 @@ class DetectionIndex:
         self.findings[finding.id] = finding
         return finding
 
-    def suggest(self, cancel=None, *, options=None):
+    def suggest(self, cancel=None, *, options=None, entities=()):
         from .business import business_hits, is_business_field
         from .context import context_hits, explanation
         options = options or DetectionOptions()
@@ -215,6 +218,30 @@ class DetectionIndex:
         names = {}
         groups = {}
         propagated = set()
+        contextual_reasons = {}
+        non_persons, persons = set(), set()
+        for layer, entity in entities:
+            check_cancel(cancel)
+            value = ' '.join(layer.text[entity.start:entity.end].split())
+            key = canonical(value)
+            if entity.kind != 'Nom':
+                non_persons.add(key)
+            else:
+                persons.add(key)
+            if category_for(entity.kind) not in enabled:
+                continue
+            if len(value) > (100 if entity.kind == 'Nom' else 160):
+                self.warnings.append('Une entité de contexte trop longue demande une vérification manuelle.')
+                continue
+            if entity.kind == 'Nom':
+                names.setdefault(key, (value, 'Nom reconnu dans la phrase par le modèle local : à vérifier.'))
+            else:
+                entry = groups.setdefault((entity.kind, key), [value, []])
+                entry[1].extend(layer.zones(entity.start, entity.end))
+                propagated.add((entity.kind, key))
+                description = 'Organisation' if entity.kind == 'Entreprise / client' else 'Lieu'
+                contextual_reasons[entity.kind, key] = (
+                    f'{description} reconnu dans la phrase par le modèle local : à vérifier.')
         for layer in self.layers:
             check_cancel(cancel)
             for kind, pattern in PATTERNS:
@@ -283,7 +310,11 @@ class DetectionIndex:
             if len(names) + len(groups) > MAX_FINDINGS:
                 raise DocumentError('Trop de suggestions. Analyse arrêtée sans validation automatique.')
         if 'names' in enabled:
-            for value, reason in names.values():
+            for key, (value, reason) in names.items():
+                # A company/place identified from context is not also a person
+                # merely because its words happen to start with capitals.
+                if key in non_persons and key not in persons:
+                    continue
                 self.add_name(value, cancel=cancel, reason=reason)
         for (kind, key), (value, zones) in groups.items():
             check_cancel(cancel)
@@ -291,7 +322,8 @@ class DetectionIndex:
                 zones.extend(self.find_terms((value,), cancel))
             zones = merge_zones(zones)
             if zones:
-                finding = Finding(identifier(kind, key), kind, value, zones, reason=explanation(kind))
+                finding = Finding(identifier(kind, key), kind, value, zones,
+                                  reason=contextual_reasons.get((kind, key), explanation(kind)))
                 self.findings[finding.id] = finding
         if 'custom' in enabled:
             for term in options.terms:
@@ -313,7 +345,7 @@ class DetectionIndex:
         return merge_zones(zones)
 
 
-def scan(document, *, use_ocr=True, progress=None, cancel=None, options=None):
+def scan(document, *, use_ocr=True, progress=None, cancel=None, options=None, use_ner=True):
     options = options or DetectionOptions()
     layers, warnings, ocr_pages = [], [], 0
     engine = None
@@ -352,8 +384,33 @@ def scan(document, *, use_ocr=True, progress=None, cancel=None, options=None):
             raise DocumentError('Document trop dense pour une analyse complète (500 000 caractères).')
     check_cancel(cancel)
     index = DetectionIndex(layers)
-    findings = index.suggest(cancel, options=options)
+    entities, ner_pages = [], set()
+    ner_requested = bool({'names', 'companies', 'addresses'} & set(options.categories))
     if progress:
         progress(document.pages, document.pages)
-    report = ScanReport(findings, tuple(warnings), document.pages, ocr_pages, options.categories)
+    if ner_requested:
+        try:
+            if not use_ner:
+                raise DocumentError('Context recognition disabled')
+            from .ner import LocalNer
+            recognizer = LocalNer()
+        except Exception:
+            warnings.append('Reconnaissance du contexte indisponible : noms, organisations et lieux '
+                            'peuvent manquer. Réinstallez le modèle local ; aucun téléchargement lancé.')
+        else:
+            for layer in layers:
+                check_cancel(cancel)
+                try:
+                    entities.extend((layer, entity) for entity in recognizer.entities(layer.text, cancel=cancel))
+                    ner_pages.add(layer.page)
+                except ExportCancelled:
+                    raise
+                except Exception:
+                    warnings.append(f'Page {layer.page} : reconnaissance du contexte incomplète.')
+    findings = index.suggest(cancel, options=options, entities=entities)
+    warnings.extend(index.warnings)
+    if progress:
+        progress(document.pages, document.pages)
+    report = ScanReport(findings, tuple(dict.fromkeys(warnings)), document.pages, ocr_pages,
+                        options.categories, len(ner_pages), ner_requested)
     return index, report

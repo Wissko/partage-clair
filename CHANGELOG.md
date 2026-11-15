@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0 — 2026-11-15
+
+- Reconnaissance du contexte français avec NERmemberta (CATIE), ONNX sur CPU, sans libellé requis.
+- Propositions de personnes, organisations et lieux sur le texte PDF et OCR, y compris certains noms en minuscules.
+- Blocs de 512 tokens avec chevauchement ; seconde lecture par phrases des couches longues.
+- Propagation des noms et recherche des organisations/lieux dans les autres pages, sous validation explicite.
+- Modèle et tokenizer vérifiés par taille et SHA-256 ; aucun téléchargement pendant l'analyse.
+- Couverture du modèle visible ; avertissement et score limité à 49 en cas de modèle absent/échec.
+- Portable incluant les poids dans models/ner à côté de l'exécutable pour éviter leur extraction à chaque lancement.
+- Tests sans libellés, minuscules, longues séquences, accents, panne locale, absence de réseau et validation avant export.
+
 ## 0.6.0 — 2026-11-15
 
 - Sélection de 12 catégories de détection, toutes cochées par défaut, avant ou après ouverture.

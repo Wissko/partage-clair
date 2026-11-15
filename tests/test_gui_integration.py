@@ -390,3 +390,37 @@ def test_category_picker_dictionary_and_scope_changes_keep_human_validation(tmp_
         assert not errors
     finally:
         cleanup(root, app)
+
+
+def test_context_recognition_without_labels_is_automatic_but_requires_review(tmp_path, monkeypatch, tk_root):
+    from partage_clair.detection import scan
+    from partage_clair.ner_assets import model_folder
+    from tests.test_detection import make_pdf
+    if not (model_folder() / 'model.onnx').is_file():
+        pytest.skip('Install the context model; CI always does so.')
+    source = make_pdf(tmp_path / 'sentences.pdf', ['Delmas travaille chez AXA.', 'delmas a signé.'])
+
+    def native(document, **arguments):
+        arguments['use_ocr'] = False
+        return scan(document, **arguments)
+    monkeypatch.setattr('partage_clair.detection.scan', native)
+    errors = []
+    monkeypatch.setattr('partage_clair.gui.messagebox.showerror', lambda *args: errors.append(args))
+    root = tk_root
+    app = App(root, initial_path=source)
+    try:
+        wait(root, lambda: app.report is not None and not app.busy)
+        assert app.report.ner_pages == 2
+        person = next(f for f in app.report.findings if f.kind == 'Nom' and f.value == 'Delmas')
+        organization = next(f for f in app.report.findings if f.kind == 'Entreprise / client' and f.value == 'AXA')
+        assert person.pages == (1, 2)
+        assert not app.approved and not app.all_boxes() and not app.choices
+        app.review.tree.selection_set(person.id)
+        app.review.select()
+        assert not app.approved and not app.all_boxes()
+        app.review.accept()
+        assert set(app.approved) == {person.id} and organization.id not in app.approved
+        assert {b.page for b in app.all_boxes()} == {1, 2}
+        assert not errors
+    finally:
+        cleanup(root, app)

@@ -1,7 +1,8 @@
-PARTAGE CLAIR 0.6.0 — WINDOWS 64 BITS
+PARTAGE CLAIR 0.7.0 — WINDOWS 64 BITS
 
 1. Extrayez le ZIP dans un dossier de votre choix.
 2. Lancez PartageClair.exe. Python n'est pas nécessaire.
+   Gardez le dossier models à côté de l'exécutable : il contient le modèle français.
 3. Ouvrez un PDF ou une image. Parcourez toutes les pages.
 4. L'analyse locale démarre automatiquement après l'ouverture. Vérifiez ses propositions.
    Aucune suggestion n'est masquée avant votre validation. Un nom validé couvre toutes
@@ -17,6 +18,14 @@ manuellement. Le changement de page et le zoom ne déclenchent pas de nouvelle a
 Un nouveau document efface les validations précédentes : elles ne sont jamais transférées.
 
 SCORE ET REVUE DES RISQUES
+Le moteur lit désormais aussi les phrases avec un modèle français local. Par exemple,
+« Delmas travaille chez AXA » peut proposer Delmas comme personne et AXA comme organisation,
+sans champ « Nom » ou « Entreprise ». Il propose aussi des lieux et certains noms en
+minuscules. Le traitement combine ce modèle, les règles et l'OCR des scans.
+Rien n'est masqué sans validation. Une absence de proposition ne prouve pas l'absence
+de secret : relisez les pages. Si le modèle manque ou échoue, un avertissement apparaît
+et limite le score à 49. Aucun modèle n'est téléchargé pendant le traitement.
+
 « Choisir les données » propose 12 catégories, toutes cochées par défaut : noms,
 adresses, mails, téléphones, dates, banque, entreprises/clients, montants, références,
 données métier, autres indices et expressions confidentielles personnalisées.

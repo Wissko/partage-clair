@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "partage-clair"
-version = "0.6.0"
+version = "0.7.0"
 description = "Prepare PDFs and images for sharing, offline, with permanent pixel redactions."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -17,6 +17,7 @@ dev = ["pytest==9.2.0", "ruff==0.17.5", "pip-audit==2.10.1"]
 build = ["pyinstaller==6.22.3"]
 benchmark = ["psutil==7.2.2"]
 ocr = ["rapidocr==3.10.0", "onnxruntime==1.32.0"]
+ner = ["tokenizers==0.23.3", "onnxruntime==1.32.0"]
 
 [project.scripts]
 partage-clair = "partage_clair.cli:main"
@@ -30,6 +31,10 @@ Issues = "https://github.com/Wissko/partage-clair/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+partage_clair = ["models/ner/model.onnx", "models/ner/tokenizer.json", "models/ner/config.json",
+                 "models/ner/MODEL_LICENSE.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

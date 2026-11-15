@@ -21,6 +21,8 @@ class DetectionWindow:
                   font=('Segoe UI', 15, 'bold')).pack(anchor='w')
         ttk.Label(frame, text='Tout est sélectionné au départ. Ces choix proposent des zones ; '
                   'seule votre validation les masque.', wraplength=780).pack(anchor='w', pady=(6, 10))
+        ttk.Label(frame, text='Le modèle français lit aussi les phrases pour proposer des noms, '
+                  'organisations et lieux, même sans libellé devant.', wraplength=780).pack(anchor='w', pady=(0, 8))
         grid = ttk.Frame(frame)
         grid.pack(fill='x')
         self.variables = {}

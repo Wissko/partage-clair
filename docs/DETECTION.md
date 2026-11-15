@@ -21,6 +21,40 @@ ces valeurs n'est écrit sur disque ni envoyé à un service.
 
 ## Types proposés
 
+Depuis 0.7, scan() complète les règles avec un modèle de reconnaissance d'entités
+français exécuté localement : [NERmemberta, CATIE](https://huggingface.co/CATIE-AQ/NERmemberta-4entities),
+dans sa [conversion ONNX](https://huggingface.co/julienkilo/onnx_NERmemberta-4entities).
+Il propose personnes, organisations et lieux dans les phrases, sans libellés obligatoires.
+Il ne classe pas automatiquement toutes les formes de secrets commerciaux. Le modèle
+ne s'entraîne pas sur les documents et ne remplace pas les détecteurs de formats.
+
+Les sous-mots sont regroupés avant seuil de proposition (moyenne des sorties ≥ 0,5),
+puis étendus aux mots entiers pour éviter de masquer seulement un morceau de mot.
+Ces sorties ne sont pas des probabilités calibrées de confidentialité ou d'anonymat.
+Les blocs ont 512 tokens et 64 tokens de chevauchement ; les longues couches sont aussi
+relues par phrases. Les spans sont ramenés aux caractères d'origine, puis à la géométrie
+PDFium/OCR. Les doublons chevauchants de même type sont réunis. Les noms propagent leurs
+composants ; organisations/lieux propagent seulement leur expression entière.
+
+Toutes ces propositions respectent les catégories cochées et requièrent une validation.
+La revue indique combien de pages ont été traitées par le modèle. Les fichiers manquants,
+altérés ou les erreurs d'inférence sont signalés ; les règles restent disponibles et le
+score ne peut dépasser 49. Les tests avec des phrases fictives ne constituent pas un
+benchmark représentatif de l'ensemble des documents d'entreprise.
+
+L'installation explicite est `python scripts/fetch_ner_model.py` après installation de
+`.[ocr,ner]`. Le script est réservé à l'installation/construction. L'analyse utilise
+uniquement des chemins locaux. Le portable distribue le modèle à côté de l'exécutable.
+
+| Fichier local | SHA-256 |
+| --- | --- |
+| model.onnx | 77454f580606e61c7e2aca67f220030547d6c7fc033318d156cddc5c091bd82f |
+| tokenizer.json | 9a73847b1816a4ba8f99a11e602fc983d717b3cc393696239b2a57d32adbedca |
+| config.json | a8d4eaade4e37245507b2f6ce955b794c7bd0c5a154a05223914f6a8f19a8a27 |
+
+Voir [la notice et la licence du modèle](NER_MODEL_LICENSE.txt). Les poids ne sont pas
+quantifiés : les variantes allégées évaluées ne conservaient pas les résultats requis.
+
 Depuis 0.6, **Choisir les données…** donne accès à 12 catégories, toutes actives par défaut.
 Le filtre s'applique dans le moteur aux règles de texte PDF et d'OCR, sur toutes les pages.
 Une nouvelle sélection relance l'analyse sans masquer automatiquement ; les anciennes
