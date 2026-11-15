@@ -4,7 +4,7 @@
 
 - Reconnaissance du contexte français avec NERmemberta (CATIE), ONNX sur CPU, sans libellé requis.
 - Propositions de personnes, organisations et lieux sur le texte PDF et OCR, y compris certains noms en minuscules.
-- Blocs de 512 tokens avec chevauchement ; seconde lecture par phrases des couches longues.
+- Blocs de 512 tokens avec chevauchement, complétés par une lecture par phrases.
 - Propagation des noms et recherche des organisations/lieux dans les autres pages, sous validation explicite.
 - Modèle et tokenizer vérifiés par taille et SHA-256 ; aucun téléchargement pendant l'analyse.
 - Couverture du modèle visible ; avertissement et score limité à 49 en cas de modèle absent/échec.

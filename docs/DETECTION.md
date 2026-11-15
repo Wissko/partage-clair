@@ -31,7 +31,7 @@ ne s'entraîne pas sur les documents et ne remplace pas les détecteurs de forma
 Les sous-mots sont regroupés avant seuil de proposition (moyenne des sorties ≥ 0,5),
 puis étendus aux mots entiers pour éviter de masquer seulement un morceau de mot.
 Ces sorties ne sont pas des probabilités calibrées de confidentialité ou d'anonymat.
-Les blocs ont 512 tokens et 64 tokens de chevauchement ; les longues couches sont aussi
+Les blocs ont 512 tokens et 64 tokens de chevauchement ; les couches sont aussi
 relues par phrases. Les spans sont ramenés aux caractères d'origine, puis à la géométrie
 PDFium/OCR. Les doublons chevauchants de même type sont réunis. Les noms propagent leurs
 composants ; organisations/lieux propagent seulement leur expression entière.

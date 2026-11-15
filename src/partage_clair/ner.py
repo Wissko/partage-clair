@@ -143,20 +143,19 @@ class LocalNer:
             return ()
         encoded = self.tokenizer.encode(text)
         found = self._predict(text, encoded, cancel)
-        if encoded.overflowing:
-            # Long boilerplate can obscure a short entity in a large window.
-            # Supplement that view with sentences; the temporary cache avoids
-            # repeatedly inferring identical boilerplate and is discarded here.
-            cache = {}
-            for start, end in sentence_spans(text):
-                check_cancel(cancel)
-                unit = text[start:end]
-                if unit == text:
-                    continue
-                if unit not in cache:
-                    cache[unit] = self._predict(unit, self.tokenizer.encode(unit), cancel)
-                found.extend(Entity(entity.kind, start + entity.start, start + entity.end)
-                             for entity in cache[unit])
+        # Neighboring sentences and boilerplate can obscure a short entity.
+        # Supplement the full view with sentences, even on a short page.
+        # This temporary cache is discarded after this call, never shared.
+        cache = {}
+        for start, end in sentence_spans(text):
+            check_cancel(cancel)
+            unit = text[start:end]
+            if unit.strip() == text.strip():
+                continue
+            if unit not in cache:
+                cache[unit] = self._predict(unit, self.tokenizer.encode(unit), cancel)
+            found.extend(Entity(entity.kind, start + entity.start, start + entity.end)
+                         for entity in cache[unit])
         # Overlapping windows can return truncated duplicates: union their spans.
         merged = []
         for entity in sorted(set(found), key=lambda e: (e.kind, e.start, e.end)):

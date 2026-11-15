@@ -55,6 +55,12 @@ def test_ordinary_sentence_has_no_entities(recognizer):
     assert recognizer.entities('Nous livrerons les produits demain matin. Merci pour votre retour.') == ()
 
 
+def test_sentence_view_complements_context_when_neighboring_text_obscures_name(recognizer):
+    text = 'Delmas travaille chez AXA.\nIl a rejoint une equipe a Bordeaux.'
+    actual = {(e.kind, text[e.start:e.end]) for e in recognizer.entities(text)}
+    assert {('Nom', 'Delmas'), ('Entreprise / client', 'AXA'), ('Lieu', 'Bordeaux')} <= actual
+
+
 def test_aggregation_does_not_extend_into_previous_word_or_redact_only_subword():
     text = 'par Delmas chez AXA'
     assert expand_word(text, 3, 10) == (4, 10)

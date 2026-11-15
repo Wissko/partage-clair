@@ -79,7 +79,7 @@ comptes et autres identifiants.
 Les propositions sont recherchées dans les autres pages : noms complets et composants
 pour les personnes, expression entière pour les organisations et lieux. **Rien n'est
 masqué avant validation.** Le modèle est exécuté sur CPU dans le même worker local, sur
-le texte PDF et celui de l'OCR. Les longues couches de texte sont parcourues par blocs
+le texte PDF et celui de l'OCR. Les couches de texte sont parcourues par blocs
 de 512 tokens avec chevauchement, complétés par une lecture par phrases. Aucun texte
 de document n'est envoyé, enregistré pour un entraînement ou conservé dans un cache global.
 

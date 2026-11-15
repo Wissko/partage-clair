@@ -398,7 +398,8 @@ def test_context_recognition_without_labels_is_automatic_but_requires_review(tmp
     from tests.test_detection import make_pdf
     if not (model_folder() / 'model.onnx').is_file():
         pytest.skip('Install the context model; CI always does so.')
-    source = make_pdf(tmp_path / 'sentences.pdf', ['Delmas travaille chez AXA.', 'delmas a signé.'])
+    source = make_pdf(tmp_path / 'sentences.pdf', [
+        'Delmas travaille chez AXA.\nIl a rejoint une equipe a Bordeaux.', 'delmas a signé.'])
 
     def native(document, **arguments):
         arguments['use_ocr'] = False
